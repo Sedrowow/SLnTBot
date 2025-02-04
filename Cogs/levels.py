@@ -174,29 +174,29 @@ class LevelsCog(commands.Cog, name="leveling commands"):
     async def levels_manage(self, interaction: discord.Interaction):
         """Manage level roles and settings"""
         user_priority = self.get_user_priority(interaction.user)
-        if user_priority > 2:  # Only ranks 0-2 can manage levels
+        # Change condition to <= 2 instead of > 2 to allow ranks 0-2
+        if user_priority <= 2:  # Ranks 0-2 can manage levels
+            view = LevelManageView(self)
+            embed = discord.Embed(
+                title="Level Management",
+                description="Current level roles:",
+                color=discord.Color.blue()
+            )
+            
+            for level, role_id in self.data.get("level_roles", {}).items():
+                role = interaction.guild.get_role(int(role_id))
+                embed.add_field(
+                    name=f"Level {level}",
+                    value=f"Role: {role.mention if role else 'Not found'}",
+                    inline=False
+                )
+
+            await interaction.response.send_message(embed=embed, view=view)
+        else:
             await interaction.response.send_message(
-                "You don't have permission to manage levels!",
+                "You don't have permission to manage levels! Only ranks 0-2 can manage levels.",
                 ephemeral=True
             )
-            return
-
-        view = LevelManageView(self)
-        embed = discord.Embed(
-            title="Level Management",
-            description="Current level roles:",
-            color=discord.Color.blue()
-        )
-        
-        for level, role_id in self.data.get("level_roles", {}).items():
-            role = interaction.guild.get_role(int(role_id))
-            embed.add_field(
-                name=f"Level {level}",
-                value=f"Role: {role.mention if role else 'Not found'}",
-                inline=False
-            )
-
-        await interaction.response.send_message(embed=embed, view=view)
 
     @app_commands.command(name="addexp", description="Add or remove EXP from a user")
     async def add_exp(self, interaction: discord.Interaction, user: discord.Member, amount: int):
