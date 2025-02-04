@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands, ui
@@ -24,7 +25,7 @@ class AbortModal(Modal):
         await interaction.response.send_message("Invalid code!", ephemeral=True)
         return False
 
-class MissionView(View):
+class PendingMissionView(View):
     def __init__(self, bot: commands.Bot, mission_data: dict):
         super().__init__(timeout=None)
         self.bot = bot
@@ -32,29 +33,26 @@ class MissionView(View):
 
     @discord.ui.button(label="Start Mission", style=discord.ButtonStyle.green)
     async def start_mission(self, interaction: discord.Interaction, button: Button):
-        missions_channel_id = self.mission_data["channels"].get("missions")
-        if not missions_channel_id:
-            await interaction.response.send_message("Error: Missions channel not configured!", ephemeral=True)
-            return
-
         try:
-            channel = await self.bot.fetch_channel(int(missions_channel_id))
+            channel = await self.bot.fetch_channel(int(self.mission_data["channels"]["missions"]))
+            
+            # Create active mission embed
             embed = discord.Embed(
-                title=f"New Mission Started #{self.mission_data['id']}",
+                title=f"Mission #{self.mission_data['id']} In Progress",
                 description=f"Leader: {interaction.user.mention}\nCategory: {self.mission_data['category']}\nDescription: {self.mission_data['description']}",
                 color=discord.Color.green()
             )
-            await channel.send(embed=embed)
             
-            # Update view to show end/abort buttons
-            self.clear_items()
-            self.add_item(Button(label="End Mission", style=discord.ButtonStyle.green, custom_id="end_mission"))
-            self.add_item(Button(label="Abort Mission", style=discord.ButtonStyle.red, custom_id="abort_mission"))
-            await interaction.response.edit_message(view=self)
+            # Create active mission view with end/abort buttons
+            active_view = ActiveMissionView(self.bot, self.mission_data)
+            await channel.send(embed=embed, view=active_view)
             
-            await interaction.followup.send("Mission started successfully!", ephemeral=True)
-        except discord.NotFound:
-            await interaction.response.send_message("Error: Could not find missions channel!", ephemeral=True)
+            # Remove buttons from pending mission message
+            await interaction.message.edit(view=None)
+            await interaction.response.send_message("Mission started successfully!", ephemeral=True)
+            
+        except Exception as e:
+            await interaction.response.send_message(f"Error starting mission: {str(e)}", ephemeral=True)
 
     @discord.ui.button(label="Request Support", style=discord.ButtonStyle.primary)
     async def request_support(self, interaction: discord.Interaction, button: Button):
@@ -73,74 +71,91 @@ class MissionView(View):
             allowed_mentions=discord.AllowedMentions(users=True)
         )
 
-    @discord.ui.button(label="End Mission", style=discord.ButtonStyle.green, custom_id="end_mission")
+class ActiveMissionView(View):
+    def __init__(self, bot: commands.Bot, mission_data: dict):
+        super().__init__(timeout=None)
+        self.bot = bot
+        self.mission_data = mission_data
+
+    @discord.ui.button(label="End Mission", style=discord.ButtonStyle.green)
     async def end_mission(self, interaction: discord.Interaction, button: Button):
-        end_time = datetime.datetime.now()
-        start_time = datetime.datetime.fromisoformat(self.mission_data["start_time"])
-        duration = end_time - start_time
-        
-        # Create screenshot request modal
-        screenshot_modal = Modal(title="Add Screenshot")
-        screenshot_input = TextInput(
-            label="Screenshot URL (optional)",
-            required=False,
-            placeholder="Paste screenshot URL here"
-        )
-        screenshot_modal.add_item(screenshot_input)
-        await interaction.response.send_modal(screenshot_modal)
-        
         try:
-            modal_interaction = await self.bot.wait_for(
-                "modal_submit",
-                check=lambda i: i.user.id == interaction.user.id,
-                timeout=300.0
-            )
+            end_time = datetime.datetime.now()
+            start_time = datetime.datetime.fromisoformat(self.mission_data["start_time"])
+            duration = end_time - start_time
             
-            self.mission_data["end_time"] = end_time.isoformat()
-            self.mission_data["duration"] = str(duration)
-            self.mission_data["status"] = "completed"
-            
-            if screenshot_input.value:
-                self.mission_data["screenshot"] = screenshot_input.value
+            class EndMissionModal(Modal):
+                def __init__(self):
+                    super().__init__(title="Mission End Details")
+                    self.screenshot = TextInput(
+                        label="Screenshot URL",
+                        required=False,
+                        placeholder="Paste screenshot URL here..."
+                    )
+                    self.reason = TextInput(
+                        label="End Reason",
+                        required=True,
+                        placeholder="Why is the mission ending?"
+                    )
+                    self.add_item(self.screenshot)
+                    self.add_item(self.reason)
 
-            # Post completion to missions channel
-            channel = await self.bot.fetch_channel(int(self.mission_data["channels"]["missions"]))
-            await channel.send(
-                embed=discord.Embed(
-                    title=f"Mission {self.mission_data['id']} Completed",
-                    description=f"Duration: {duration}\nCategory: {self.mission_data['category']}\nDescription: {self.mission_data['description']}",
-                    color=discord.Color.blue()
+            modal = EndMissionModal()
+            await interaction.response.send_modal(modal)
+
+            try:
+                modal_inter = await self.bot.wait_for(
+                    "modal_submit",
+                    timeout=300.0,
+                    check=lambda i: i.user.id == interaction.user.id
                 )
-            )
-            
-            # Send screenshot notification
-            screenshots_channel_id = self.mission_data["channels"].get("screenshots")
-            if screenshots_channel_id and screenshot_input.value:
-                try:
-                    screenshots_channel = await self.bot.fetch_channel(int(screenshots_channel_id))
-                    await screenshots_channel.send(
-                        f"**Mission #{self.mission_data['id']} Screenshot**\n"
-                        f"Submitted by: {interaction.user.mention}\n"
-                        f"Screenshot: {screenshot_input.value}"
-                    )
-                except discord.NotFound:
-                    await interaction.followup.send(
-                        "Warning: Could not post to screenshots channel. Please check channel configuration.",
-                        ephemeral=True
-                    )
 
-            # Disable buttons
-            self.clear_items()
-            await interaction.message.edit(view=self)
-            await modal_interaction.response.send_message("Mission completed successfully!", ephemeral=True)
-            
-        except TimeoutError:
-            await interaction.followup.send("Screenshot submission timed out.", ephemeral=True)
+                self.mission_data.update({
+                    "status": "completed",
+                    "end_time": end_time.isoformat(),
+                    "duration": str(duration),
+                    "end_reason": modal.reason.value,
+                    "screenshot": modal.screenshot.value if modal.screenshot.value else None
+                })
+
+                # Create completion embed
+                embed = discord.Embed(
+                    title=f"Mission {self.mission_data['id']} Completed",
+                    description=(
+                        f"Duration: {duration}\n"
+                        f"Category: {self.mission_data['category']}\n"
+                        f"Description: {self.mission_data['description']}\n"
+                        f"Reason: {modal.reason.value}"
+                    ),
+                    color=discord.Color.yellow()
+                )
+
+                # Handle screenshot if provided
+                if modal.screenshot.value:
+                    screenshots_channel_id = self.mission_data["channels"].get("screenshots")
+                    if screenshots_channel_id:
+                        try:
+                            screenshots_channel = await self.bot.fetch_channel(int(screenshots_channel_id))
+                            await screenshots_channel.send(
+                                f"Screenshot for Mission #{self.mission_data['id']}\n"
+                                f"Submitted by: {interaction.user.mention}\n"
+                                f"URL: {modal.screenshot.value}"
+                            )
+                        except discord.NotFound:
+                            await modal_inter.response.send_message(
+                                "Warning: Could not post screenshot to screenshots channel.",
+                                ephemeral=True
+                            )
+
+                # Update message
+                await interaction.message.edit(embed=embed, view=None)
+                await modal_inter.response.send_message("Mission completed successfully!", ephemeral=True)
+
+            except asyncio.TimeoutError:
+                await interaction.followup.send("Mission end timed out.", ephemeral=True)
+
         except Exception as e:
-            await interaction.followup.send(
-                f"Error processing mission end: {str(e)}",
-                ephemeral=True
-            )
+            await interaction.followup.send(f"Error ending mission: {str(e)}", ephemeral=True)
 
     @discord.ui.button(label="Abort Mission", style=discord.ButtonStyle.red)
     async def abort_mission(self, interaction: discord.Interaction, button: Button):
@@ -208,7 +223,7 @@ class MissionCog(commands.Cog, name="mission commands"):
             if not channel:
                 return False
 
-            view = MissionView(self.bot, mission_data)
+            view = PendingMissionView(self.bot, mission_data)
             embed = discord.Embed(
                 title=f"New Mission #{mission_data['id']}",
                 description=f"Category: {mission_data['category']}\nDescription: {mission_data['description']}",
