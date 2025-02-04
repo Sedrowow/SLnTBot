@@ -80,14 +80,32 @@ class ActiveMissionView(View):
     @discord.ui.button(label="End Mission", style=discord.ButtonStyle.green)
     async def end_mission(self, interaction: discord.Interaction, button: Button):
         try:
-            screenshots_channel = await self.bot.fetch_channel(int(self.mission_data["channels"]["screenshots"]))
+            # Get and validate screenshots channel
+            screenshots_channel_id = self.mission_data["channels"].get("screenshots")
+            if not screenshots_channel_id:
+                await interaction.response.send_message(
+                    "Error: Screenshots channel not configured! Please ask an admin to set it up.",
+                    ephemeral=True
+                )
+                return
+
+            try:
+                screenshots_channel = await self.bot.fetch_channel(int(screenshots_channel_id))
+            except (discord.NotFound, ValueError):
+                await interaction.response.send_message(
+                    "Error: Could not find screenshots channel! Please ask an admin to check the configuration.",
+                    ephemeral=True
+                )
+                return
+
+            # Send end confirmation request
             await screenshots_channel.send(
                 f"Mission #{self.mission_data['id']} ending.\n"
                 f"{interaction.user.mention}, please use `/confend {self.mission_data['id']} <reason>` "
                 f"and optionally upload a screenshot."
             )
             
-            # Update mission status to ending
+            # Update mission status
             self.mission_data["status"] = "ending"
             self.mission_data["end_initiated_by"] = interaction.user.id
             self.mission_data["end_time"] = datetime.datetime.now().isoformat()
@@ -95,22 +113,46 @@ class ActiveMissionView(View):
             # Disable buttons
             self.clear_items()
             await interaction.message.edit(view=self)
-            await interaction.response.send_message("Mission end initiated. Please confirm in screenshots channel.", ephemeral=True)
+            await interaction.response.send_message(
+                "Mission end initiated. Please confirm in screenshots channel.", 
+                ephemeral=True
+            )
             
         except Exception as e:
-            await interaction.response.send_message(f"Error ending mission: {str(e)}", ephemeral=True)
+            await interaction.response.send_message(
+                f"Error ending mission: {str(e)}", 
+                ephemeral=True
+            )
 
     @discord.ui.button(label="Abort Mission", style=discord.ButtonStyle.red)
     async def abort_mission(self, interaction: discord.Interaction, button: Button):
         try:
-            screenshots_channel = await self.bot.fetch_channel(int(self.mission_data["channels"]["screenshots"]))
+            # Get and validate screenshots channel
+            screenshots_channel_id = self.mission_data["channels"].get("screenshots")
+            if not screenshots_channel_id:
+                await interaction.response.send_message(
+                    "Error: Screenshots channel not configured! Please ask an admin to set it up.",
+                    ephemeral=True
+                )
+                return
+
+            try:
+                screenshots_channel = await self.bot.fetch_channel(int(screenshots_channel_id))
+            except (discord.NotFound, ValueError):
+                await interaction.response.send_message(
+                    "Error: Could not find screenshots channel! Please ask an admin to check the configuration.",
+                    ephemeral=True
+                )
+                return
+
+            # Send abort confirmation request
             await screenshots_channel.send(
                 f"Mission #{self.mission_data['id']} aborting.\n"
                 f"{interaction.user.mention}, please use `/confabort {self.mission_data['id']} <reason>` "
                 f"and optionally upload a screenshot."
             )
             
-            # Update mission status to aborting
+            # Update mission status
             self.mission_data["status"] = "aborting"
             self.mission_data["abort_initiated_by"] = interaction.user.id
             self.mission_data["abort_time"] = datetime.datetime.now().isoformat()
@@ -118,11 +160,16 @@ class ActiveMissionView(View):
             # Disable buttons
             self.clear_items()
             await interaction.message.edit(view=self)
-            await interaction.response.send_message("Mission abort initiated. Please confirm in screenshots channel.", ephemeral=True)
+            await interaction.response.send_message(
+                "Mission abort initiated. Please confirm in screenshots channel.", 
+                ephemeral=True
+            )
             
         except Exception as e:
-            await interaction.response.send_message(f"Error aborting mission: {str(e)}", ephemeral=True)
-
+            await interaction.response.send_message(
+                f"Error aborting mission: {str(e)}", 
+                ephemeral=True
+            )
 class MissionCog(commands.Cog, name="mission commands"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
