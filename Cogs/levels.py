@@ -72,8 +72,9 @@ class LevelsCog(commands.Cog, name="leveling commands"):
         next_level = min(level + 1, max(map(int, self.config["experience_levels"].keys())))
         exp_needed = self.config["experience_levels"][str(next_level)] - exp
 
+        name_part = "Your" if user is None else f"{target.name}'s"
         await interaction.response.send_message(
-            f"{'Your' if user is None else target.name + '\'s'} Stats:\n"
+            f"{name_part} Stats:\n"
             f"Level: {level}\n"
             f"EXP: {exp}\n"
             f"Next level in: {exp_needed} EXP"
