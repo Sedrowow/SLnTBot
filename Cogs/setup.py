@@ -13,16 +13,42 @@ class RoleSelect(Select):
         super().__init__(placeholder="Select a role", options=options)
 
 class ChannelSelect(Select):
-    def __init__(self, channels):
+    def __init__(self, channels, purpose):
         options = [
             discord.SelectOption(label=channel.name, value=str(channel.id))
             for channel in channels if isinstance(channel, discord.TextChannel)
         ][:25]  # Discord has a 25 option limit
-        super().__init__(placeholder="Select a channel", options=options)
+        super().__init__(placeholder=f"Select {purpose} channel", options=options)
+        self.purpose = purpose
+
+    async def callback(self, interaction: discord.Interaction):
+        view = self.view
+        if isinstance(view, ChannelSetupView):
+            await view.set_channel(interaction, self.values[0], self.purpose)
+
+class ChannelSetupView(View):
+    def __init__(self, bot: commands.Bot):
+        super().__init__()
+        self.bot = bot
+        
+    async def set_channel(self, interaction, channel_id, purpose):
+        with open("data/database.json", "r") as f:
+            data = json.load(f)
+        
+        if "channels" not in data:
+            data["channels"] = {}
+            
+        data["channels"][purpose] = str(channel_id)
+        
+        with open("data/database.json", "w") as f:
+            json.dump(data, f, indent=4)
+        
+        await interaction.response.send_message(f"Set <#{channel_id}> as the {purpose} channel", ephemeral=True)
 
 class SetupView(View):
     def __init__(self, bot: commands.Bot):
         super().__init__()
+        self.bot = bot
         setup_select = Select(
             placeholder="Choose setup type",
             options=[
@@ -35,10 +61,10 @@ class SetupView(View):
             if setup_select.values[0] == "role":
                 await interaction.response.send_message("Role setup selected. Use `/role` or `s!role` to manage roles.")
             else:
-                channel_select = ChannelSelect(interaction.guild.channels)
-                channel_view = View()
-                channel_view.add_item(channel_select)
-                await interaction.response.send_message("Select a channel to configure:", view=channel_view)
+                view = ChannelSetupView(self.bot)
+                for purpose in ["missions", "announcements", "pending_missions", "mission_logs"]:
+                    view.add_item(ChannelSelect(interaction.guild.channels, purpose))
+                await interaction.response.send_message("Select channels to configure:", view=view)
 
         setup_select.callback = setup_callback
         self.add_item(setup_select)
@@ -153,9 +179,16 @@ class SetupCog(commands.Cog, name="setup commands"):
     @app_commands.default_permissions(administrator=True)
     async def setchannel_slash(self, interaction: discord.Interaction, channel: discord.TextChannel, purpose: app_commands.Choice[str]):
         """Set a channel for a specific purpose"""
+        if "channels" not in self.data:
+            self.data["channels"] = {}
+            
         self.data["channels"][purpose.value] = str(channel.id)
         self.save_data()
-        await interaction.response.send_message(f"Set {channel.mention} as the {purpose.name} channel")
+        
+        await interaction.response.send_message(
+            f"Set {channel.mention} as the {purpose.name} channel",
+            ephemeral=True
+        )
 
     # Add error handlers for invalid commands
     @setup_prefix.error
