@@ -63,12 +63,43 @@ class LevelsCog(commands.Cog, name="leveling commands"):
 
     def get_user_priority(self, member: discord.Member) -> int:
         highest_priority = float('inf')  # Default to lowest priority
+        found_role = False
+        
+        for role in member.roles:
+            role_id = str(role.id)
+            if role_id in self.data.get("roles", {}):
+                found_role = True
+                priority = self.data["roles"][role_id]["priority"]
+                highest_priority = min(highest_priority, priority)
+        
+        # If no valid roles found, return a high number to indicate no permissions
+        if not found_role:
+            return 999
+            
+        return highest_priority
+
+    def debug_roles(self, member: discord.Member) -> str:
+        """Helper method to debug role priorities"""
+        debug_info = []
         for role in member.roles:
             role_id = str(role.id)
             if role_id in self.data.get("roles", {}):
                 priority = self.data["roles"][role_id]["priority"]
-                highest_priority = min(highest_priority, priority)
-        return highest_priority
+                debug_info.append(f"Role {role.name}: Priority {priority}")
+            else:
+                debug_info.append(f"Role {role.name}: Not in system")
+        return "\n".join(debug_info)
+
+    @app_commands.command(name="checkroles", description="Debug role priorities")
+    async def check_roles(self, interaction: discord.Interaction):
+        """Debug command to check role priorities"""
+        debug_info = self.debug_roles(interaction.user)
+        priority = self.get_user_priority(interaction.user)
+        
+        await interaction.response.send_message(
+            f"Your role information:\n{debug_info}\n\nYour priority level: {priority}",
+            ephemeral=True
+        )
 
     def can_approve(self, approver: discord.Member, target: discord.Member) -> bool:
         approver_priority = self.get_user_priority(approver)
