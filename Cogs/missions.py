@@ -77,11 +77,20 @@ class ActiveMissionView(View):
         self.bot = bot
         self.mission_data = mission_data
 
+    async def get_channel_from_db(self, channel_type: str) -> str:
+        """Get channel ID from database.json"""
+        try:
+            with open("data/database.json", "r") as f:
+                data = json.load(f)
+                return data.get("channels", {}).get(channel_type)
+        except Exception:
+            return None
+
     @discord.ui.button(label="End Mission", style=discord.ButtonStyle.green)
     async def end_mission(self, interaction: discord.Interaction, button: Button):
         try:
-            # Get and validate screenshots channel
-            screenshots_channel_id = self.mission_data["channels"].get("screenshots")
+            # Get screenshots channel ID from database
+            screenshots_channel_id = await self.get_channel_from_db("screenshots")
             if not screenshots_channel_id:
                 await interaction.response.send_message(
                     "Error: Screenshots channel not configured! Please ask an admin to set it up.",
@@ -127,8 +136,8 @@ class ActiveMissionView(View):
     @discord.ui.button(label="Abort Mission", style=discord.ButtonStyle.red)
     async def abort_mission(self, interaction: discord.Interaction, button: Button):
         try:
-            # Get and validate screenshots channel
-            screenshots_channel_id = self.mission_data["channels"].get("screenshots")
+            # Get screenshots channel ID from database
+            screenshots_channel_id = await self.get_channel_from_db("screenshots")
             if not screenshots_channel_id:
                 await interaction.response.send_message(
                     "Error: Screenshots channel not configured! Please ask an admin to set it up.",
