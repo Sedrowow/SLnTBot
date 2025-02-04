@@ -77,6 +77,10 @@ class SetupCog(commands.Cog, name="setup commands"):
     def load_data(self):
         with open("data/database.json", "r") as f:
             self.data = json.load(f)
+            # Initialize required structures if they don't exist
+            if "roles" not in self.data:
+                self.data["roles"] = {}
+            self.save_data()
 
     def save_data(self):
         with open("data/database.json", "w") as f:
@@ -120,20 +124,33 @@ class SetupCog(commands.Cog, name="setup commands"):
     @app_commands.default_permissions(administrator=True)
     async def role_slash(self, interaction: discord.Interaction, role_name: str, priority: int):
         """Slash command version of role command"""
-        role = discord.utils.get(interaction.guild.roles, name=role_name)
-        if not role:
-            role = await interaction.guild.create_role(name=role_name)
+        try:
+            role = discord.utils.get(interaction.guild.roles, name=role_name)
+            if not role:
+                role = await interaction.guild.create_role(name=role_name)
 
-        role_data = {
-            "id": str(role.id),
-            "name": role_name,
-            "priority": priority,
-            "bonus_income": 1.0
-        }
+            role_data = {
+                "id": str(role.id),
+                "name": role_name,
+                "priority": priority,
+                "bonus_income": 1.0
+            }
 
-        self.data["roles"][str(role.id)] = role_data
-        self.save_data()
-        await interaction.response.send_message(f"Role {role_name} added with priority {priority}")
+            if "roles" not in self.data:
+                self.data["roles"] = {}
+            
+            self.data["roles"][str(role.id)] = role_data
+            self.save_data()
+            
+            await interaction.response.send_message(
+                f"Role {role_name} added with priority {priority}",
+                ephemeral=True
+            )
+        except Exception as e:
+            await interaction.response.send_message(
+                f"Error creating role: {str(e)}",
+                ephemeral=True
+            )
 
     @commands.command(name="editrole")
     @commands.has_permissions(administrator=True)

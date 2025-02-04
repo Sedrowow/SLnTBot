@@ -189,28 +189,35 @@ class MissionCog(commands.Cog, name="mission commands"):
             json.dump(self.data, f, indent=4)
 
     async def post_to_pending_missions(self, mission_data: dict):
-        # Get channel IDs from data
-        mission_data["channels"] = {
-            "missions": self.data["channels"].get("missions"),
-            "mission_logs": self.data["channels"].get("mission_logs"),
-            "pending_missions": self.data["channels"].get("pending_missions")
-        }
+        try:
+            # Get channel IDs from data and verify they exist
+            channels = self.data.get("channels", {})
+            mission_data["channels"] = {
+                "missions": channels.get("missions"),
+                "mission_logs": channels.get("mission_logs"),
+                "pending_missions": channels.get("pending_missions"),
+                "screenshots": channels.get("screenshots")
+            }
 
-        channel_id = self.data["channels"].get("pending_missions")
-        if channel_id:
-            try:
-                channel = await self.bot.fetch_channel(int(channel_id))
-                view = MissionView(self.bot, mission_data)
-                embed = discord.Embed(
-                    title=f"New Mission #{mission_data['id']}",
-                    description=f"Category: {mission_data['category']}\nDescription: {mission_data['description']}",
-                    color=discord.Color.blue()
-                )
-                await channel.send(embed=embed, view=view)
-            except discord.NotFound:
+            # Verify pending_missions channel exists
+            channel_id = channels.get("pending_missions")
+            if not channel_id:
                 return False
+
+            channel = await self.bot.fetch_channel(int(channel_id))
+            if not channel:
+                return False
+
+            view = MissionView(self.bot, mission_data)
+            embed = discord.Embed(
+                title=f"New Mission #{mission_data['id']}",
+                description=f"Category: {mission_data['category']}\nDescription: {mission_data['description']}",
+                color=discord.Color.blue()
+            )
+            await channel.send(embed=embed, view=view)
             return True
-        return False
+        except (discord.NotFound, ValueError, TypeError):
+            return False
 
     @commands.command(name="startmission")
     async def start_mission(self, ctx, category: str, *, description: str):
@@ -259,46 +266,73 @@ class MissionCog(commands.Cog, name="mission commands"):
         for cat in ["Rescue", "Transport", "Delivery", "Training", "Other"]
     ])
     async def start_mission_slash(self, interaction: discord.Interaction, category: app_commands.Choice[str], description: str):
-        if category.value not in self.config["mission_categories"]:
-            await interaction.response.send_message(
-                "Invalid category. Available categories: " + ", ".join(self.config["mission_categories"]))
-            return
+        try:
+            # Validate category
+            if category.value not in self.config["mission_categories"]:
+                await interaction.response.send_message(
+                    "Invalid category. Available categories: " + ", ".join(self.config["mission_categories"]))
+                return
 
-        # Check if required channels are set
-        required_channels = ["missions", "mission_logs", "pending_missions"]
-        missing_channels = [ch for ch in required_channels if not self.data["channels"].get(ch)]
-        if missing_channels:
-            await interaction.response.send_message(
-                f"Error: Missing channel configuration for: {', '.join(missing_channels)}. Please set them up first.",
-                ephemeral=True
-            )
-            return
+            # Check if channels exist
+            channels = self.data.get("channels", {})
+            required_channels = {
+                "missions": channels.get("missions"),
+                "mission_logs": channels.get("mission_logs"),
+                "pending_missions": channels.get("pending_missions")
+            }
 
-        mission_id = str(len(self.data["missions"]) + 1)
-        mission = {
-            "id": mission_id,
-            "leader": interaction.user.id,
-            "category": category.value,
-            "description": description,
-            "status": "pending",
-            "start_time": datetime.datetime.now().isoformat(),
-            "members": [interaction.user.id],
-            "helpers_needed": 0
-        }
+            # Verify all required channels exist and are accessible
+            missing_channels = []
+            for name, channel_id in required_channels.items():
+                if not channel_id:
+                    missing_channels.append(name)
+                else:
+                    try:
+                        await self.bot.fetch_channel(int(channel_id))
+                    except (discord.NotFound, ValueError):
+                        missing_channels.append(name)
 
-        self.data["active_missions"][mission_id] = mission
-        self.save_data()
+            if missing_channels:
+                await interaction.response.send_message(
+                    f"Error: Missing or invalid channel configuration for: {', '.join(missing_channels)}. Please set them up first.",
+                    ephemeral=True
+                )
+                return
 
-        # Only post to pending_missions
-        success = await self.post_to_pending_missions(mission)
-        if success:
+            # Create mission
+            mission_id = str(len(self.data.get("active_missions", {})) + 1)
+            mission = {
+                "id": mission_id,
+                "leader": interaction.user.id,
+                "category": category.value,
+                "description": description,
+                "status": "pending",
+                "start_time": datetime.datetime.now().isoformat(),
+                "members": [interaction.user.id],
+                "helpers_needed": 0
+            }
+
+            if "active_missions" not in self.data:
+                self.data["active_missions"] = {}
+
+            self.data["active_missions"][mission_id] = mission
+            self.save_data()
+
+            # Post to pending_missions
+            success = await self.post_to_pending_missions(mission)
+            if success:
+                await interaction.response.send_message(
+                    f"Mission {mission_id} created! Check pending missions channel.",
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(
+                    "Error: Could not post to pending missions channel. Please check channel configuration.",
+                    ephemeral=True
+                )
+        except Exception as e:
             await interaction.response.send_message(
-                f"Mission {mission_id} created! Check pending missions channel.",
-                ephemeral=True
-            )
-        else:
-            await interaction.response.send_message(
-                "Error: Could not post to pending missions channel. Please check channel configuration.",
+                f"Error creating mission: {str(e)}",
                 ephemeral=True
             )
 
