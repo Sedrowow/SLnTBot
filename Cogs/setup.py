@@ -12,9 +12,18 @@ class RoleSelect(Select):
         ]
         super().__init__(placeholder="Select a role", options=options)
 
-class SetupSelect(Select):
-    def __init__(self):
-        super().__init__(
+class ChannelSelect(Select):
+    def __init__(self, channels):
+        options = [
+            discord.SelectOption(label=channel.name, value=str(channel.id))
+            for channel in channels if isinstance(channel, discord.TextChannel)
+        ][:25]  # Discord has a 25 option limit
+        super().__init__(placeholder="Select a channel", options=options)
+
+class SetupView(View):
+    def __init__(self, bot: commands.Bot):
+        super().__init__()
+        setup_select = Select(
             placeholder="Choose setup type",
             options=[
                 discord.SelectOption(label="Role Setup", value="role"),
@@ -22,16 +31,17 @@ class SetupSelect(Select):
             ]
         )
 
-    async def callback(self, interaction: discord.Interaction):
-        if self.values[0] == "role":
-            await interaction.response.send_message("Role setup selected. Use `/role` or `s!role` to manage roles.")
-        else:
-            await interaction.response.send_message("Channel setup selected. Use `/channel` or `s!channel` to manage channels.")
+        async def setup_callback(interaction: discord.Interaction):
+            if setup_select.values[0] == "role":
+                await interaction.response.send_message("Role setup selected. Use `/role` or `s!role` to manage roles.")
+            else:
+                channel_select = ChannelSelect(interaction.guild.channels)
+                channel_view = View()
+                channel_view.add_item(channel_select)
+                await interaction.response.send_message("Select a channel to configure:", view=channel_view)
 
-class SetupView(View):
-    def __init__(self):
-        super().__init__()
-        self.add_item(SetupSelect())
+        setup_select.callback = setup_callback
+        self.add_item(setup_select)
 
 class SetupCog(commands.Cog, name="setup commands"):
     def __init__(self, bot: commands.Bot):
@@ -50,14 +60,14 @@ class SetupCog(commands.Cog, name="setup commands"):
     @commands.has_permissions(administrator=True)
     async def setup_prefix(self, ctx):
         """Traditional prefix command for setup"""
-        view = SetupView()
+        view = SetupView(self.bot)
         await ctx.send("Please select what you want to set up:", view=view)
 
     @app_commands.command(name="setup", description="Set up roles and channels for the bot")
     @app_commands.default_permissions(administrator=True)
     async def setup_slash(self, interaction: discord.Interaction):
         """Slash command for setup"""
-        view = SetupView()
+        view = SetupView(self.bot)
         await interaction.response.send_message("Please select what you want to set up:", view=view)
 
     @commands.command(name="role")
@@ -132,6 +142,14 @@ class SetupCog(commands.Cog, name="setup commands"):
             await ctx.send(f"Role {role.name} removed from ranking system")
         else:
             await ctx.send("This role is not in the ranking system!")
+
+    @app_commands.command(name="setchannel", description="Set a channel for a specific purpose")
+    @app_commands.default_permissions(administrator=True)
+    async def setchannel_slash(self, interaction: discord.Interaction, channel: discord.TextChannel, purpose: str):
+        """Set a channel for a specific purpose (e.g., missions, announcements)"""
+        self.data["channels"][purpose] = str(channel.id)
+        self.save_data()
+        await interaction.response.send_message(f"Set {channel.mention} as the {purpose} channel")
 
     # Add error handlers for invalid commands
     @setup_prefix.error

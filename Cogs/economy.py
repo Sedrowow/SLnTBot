@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import json
+from discord import app_commands
 
 class EconomyCog(commands.Cog, name="economy commands"):
     def __init__(self, bot: commands.Bot):
@@ -24,6 +25,44 @@ class EconomyCog(commands.Cog, name="economy commands"):
         
         balance = self.data["users"][user_id]["sc"]
         await ctx.send(f"Your balance: {balance} SC")
+
+    @app_commands.command(name="balance", description="Check your SC balance")
+    async def balance_slash(self, interaction: discord.Interaction):
+        user_id = str(interaction.user.id)
+        if user_id not in self.data["users"]:
+            self.data["users"][user_id] = {"sc": 0, "exp": 0}
+            self.save_data()
+        
+        balance = self.data["users"][user_id]["sc"]
+        await interaction.response.send_message(f"Your balance: {balance} SC")
+
+    @app_commands.command(name="transfer", description="Transfer SC to another user")
+    async def transfer_slash(self, interaction: discord.Interaction, recipient: discord.Member, amount: int):
+        if amount <= 0:
+            await interaction.response.send_message("Amount must be positive!", ephemeral=True)
+            return
+
+        sender_id = str(interaction.user.id)
+        recipient_id = str(recipient.id)
+
+        # Initialize user data if not exists
+        for user_id in [sender_id, recipient_id]:
+            if user_id not in self.data["users"]:
+                self.data["users"][user_id] = {"sc": 0, "exp": 0}
+
+        # Check if sender has enough SC
+        if self.data["users"][sender_id]["sc"] < amount:
+            await interaction.response.send_message("Insufficient balance!", ephemeral=True)
+            return
+
+        # Perform transfer
+        self.data["users"][sender_id]["sc"] -= amount
+        self.data["users"][recipient_id]["sc"] += amount
+        self.save_data()
+
+        await interaction.response.send_message(
+            f"Successfully transferred {amount} SC to {recipient.mention}"
+        )
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(EconomyCog(bot))
