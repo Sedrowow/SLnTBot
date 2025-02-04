@@ -18,9 +18,33 @@ class LevelsCog(commands.Cog, name="leveling commands"):
         with open("data/database.json", "w") as f:
             json.dump(self.data, f, indent=4)
 
+    def get_user_priority(self, member: discord.Member) -> int:
+        highest_priority = float('inf')  # Default to lowest priority
+        for role in member.roles:
+            role_id = str(role.id)
+            if role_id in self.data["roles"]:
+                priority = self.data["roles"][role_id]["priority"]
+                highest_priority = min(highest_priority, priority)
+        return highest_priority
+
+    def can_approve(self, approver: discord.Member, target: discord.Member) -> bool:
+        approver_priority = self.get_user_priority(approver)
+        target_priority = self.get_user_priority(target)
+        
+        # Only priority 0-2 can approve themselves
+        if approver.id == target.id:
+            return approver_priority <= 2
+            
+        # Can only approve people with higher priority number (lower rank)
+        return approver_priority < target_priority
+
     @commands.command(name="approve")
     @commands.has_role("Manager")
     async def approve_mission(self, ctx, user: discord.Member, mission_id: str, sc: int, exp: int):
+        if not self.can_approve(ctx.author, user):
+            await ctx.send("You don't have permission to approve this user's missions!")
+            return
+
         user_id = str(user.id)
         if user_id not in self.data["users"]:
             self.data["users"][user_id] = {"sc": 0, "exp": 0}
@@ -34,6 +58,13 @@ class LevelsCog(commands.Cog, name="leveling commands"):
     @app_commands.command(name="approve", description="Approve a mission and award SC/EXP")
     @app_commands.checks.has_role("Manager")
     async def approve_slash(self, interaction: discord.Interaction, user: discord.Member, mission_id: str, sc: int, exp: int):
+        if not self.can_approve(interaction.user, user):
+            await interaction.response.send_message(
+                "You don't have permission to approve this user's missions!", 
+                ephemeral=True
+            )
+            return
+
         user_id = str(user.id)
         if user_id not in self.data["users"]:
             self.data["users"][user_id] = {"sc": 0, "exp": 0}
