@@ -174,21 +174,28 @@ class SetupCog(commands.Cog, name="setup commands"):
         app_commands.Choice(name="Missions", value="missions"),
         app_commands.Choice(name="Announcements", value="announcements"),
         app_commands.Choice(name="Pending Missions", value="pending_missions"),
-        app_commands.Choice(name="Mission Logs", value="mission_logs")
+        app_commands.Choice(name="Mission Logs", value="mission_logs"),
+        app_commands.Choice(name="Screenshots", value="screenshots")  # Added screenshots channel
     ])
     @app_commands.default_permissions(administrator=True)
     async def setchannel_slash(self, interaction: discord.Interaction, channel: discord.TextChannel, purpose: app_commands.Choice[str]):
         """Set a channel for a specific purpose"""
-        if "channels" not in self.data:
-            self.data["channels"] = {}
+        try:
+            if "channels" not in self.data:
+                self.data["channels"] = {}
             
-        self.data["channels"][purpose.value] = str(channel.id)
-        self.save_data()
-        
-        await interaction.response.send_message(
-            f"Set {channel.mention} as the {purpose.name} channel",
-            ephemeral=True
-        )
+            self.data["channels"][purpose.value] = str(channel.id)
+            self.save_data()
+            
+            await interaction.response.send_message(
+                f"Set {channel.mention} as the {purpose.name} channel",
+                ephemeral=True
+            )
+        except Exception as e:
+            await interaction.response.send_message(
+                f"Error setting channel: {str(e)}",
+                ephemeral=True
+            )
 
     # Add error handlers for invalid commands
     @setup_prefix.error

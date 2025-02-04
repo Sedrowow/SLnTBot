@@ -56,6 +56,23 @@ class MissionView(View):
         except discord.NotFound:
             await interaction.response.send_message("Error: Could not find missions channel!", ephemeral=True)
 
+    @discord.ui.button(label="Request Support", style=discord.ButtonStyle.primary)
+    async def request_support(self, interaction: discord.Interaction, button: Button):
+        with open("data/database.json", "r") as f:
+            data = json.load(f)
+        
+        on_duty_users = [user_id for user_id, status in data.get("duty_status", {}).items() if status["active"]]
+        if not on_duty_users:
+            await interaction.response.send_message("No users currently on duty!", ephemeral=True)
+            return
+            
+        mentions = [f"<@{user_id}>" for user_id in on_duty_users]
+        await interaction.response.send_message(
+            f"Support requested! Pinging on-duty users:\n{' '.join(mentions)}\n"
+            f"Mission #{self.mission_data['id']} needs assistance!",
+            allowed_mentions=discord.AllowedMentions(users=True)
+        )
+
     @discord.ui.button(label="End Mission", style=discord.ButtonStyle.green, custom_id="end_mission")
     async def end_mission(self, interaction: discord.Interaction, button: Button):
         end_time = datetime.datetime.now()
@@ -96,6 +113,22 @@ class MissionView(View):
                 )
             )
             
+            # Send screenshot notification
+            screenshots_channel_id = self.mission_data["channels"].get("screenshots")
+            if screenshots_channel_id and screenshot_input.value:
+                try:
+                    screenshots_channel = await self.bot.fetch_channel(int(screenshots_channel_id))
+                    await screenshots_channel.send(
+                        f"**Mission #{self.mission_data['id']} Screenshot**\n"
+                        f"Submitted by: {interaction.user.mention}\n"
+                        f"Screenshot: {screenshot_input.value}"
+                    )
+                except discord.NotFound:
+                    await interaction.followup.send(
+                        "Warning: Could not post to screenshots channel. Please check channel configuration.",
+                        ephemeral=True
+                    )
+
             # Disable buttons
             self.clear_items()
             await interaction.message.edit(view=self)
@@ -103,6 +136,11 @@ class MissionView(View):
             
         except TimeoutError:
             await interaction.followup.send("Screenshot submission timed out.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(
+                f"Error processing mission end: {str(e)}",
+                ephemeral=True
+            )
 
     @discord.ui.button(label="Abort Mission", style=discord.ButtonStyle.red)
     async def abort_mission(self, interaction: discord.Interaction, button: Button):

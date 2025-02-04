@@ -1,7 +1,15 @@
 {
-    "users": {},
-    "missions": {},
-    "active_missions": {},
-    "roles": {},
-    "channels": {}
+    "users": {
+
+    },
+    "roles": {
+    },
+    "channels": {
+
+    },
+    "duty_status": {
+    },
+    "active_missions": {
+      
+    }
 }

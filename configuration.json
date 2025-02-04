@@ -1,22 +1,44 @@
 {
     "prefix": "s!",
-    "owner_id": 439412977792319499,
-    "manager_role_id": 1126480834925437008,
-    "on_duty_role_id": 1336256075250401301,
-    "on_mission_role_id": 1336256265298509855,
-    "pending_missions_channel_id": 1336256527761145936,
+    "owner_id": "439412977792319499",
+    "manager_role_id": "1126480834925437008",
+    "on_duty_role_id": "1336256075250401301",
+    "on_mission_role_id": "1336256265298509855",
     "mission_categories": [
         "Rescue",
         "Transport",
-		"Delivery",
+        "Delivery",
         "Training",
         "Other"
     ],
     "experience_levels": {
-        "1": 0,
-        "2": 200,
-        "3": 400,
-        "4": 800,
-		"5": 1600
+        "0": 0,
+        "1": 100,
+        "2": 250,
+        "3": 500,
+        "4": 1000,
+        "5": 2000
+    },
+    "level_rewards": {
+        "0": {
+            "duty_multiplier": 1.0,
+            "mission_multiplier": 1.0,
+            "bonus_cap": 0
+        },
+        "1": {
+            "duty_multiplier": 1.5,
+            "mission_multiplier": 1.2,
+            "bonus_cap": 10
+        },
+        "2": {
+            "duty_multiplier": 2.0,
+            "mission_multiplier": 1.5,
+            "bonus_cap": 20
+        }
+    },
+    "duty_rewards": {
+        "base_sc": 10,
+        "base_exp": 5,
+        "interval_minutes": 30
     }
 }
