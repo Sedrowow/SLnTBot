@@ -144,12 +144,18 @@ class SetupCog(commands.Cog, name="setup commands"):
             await ctx.send("This role is not in the ranking system!")
 
     @app_commands.command(name="setchannel", description="Set a channel for a specific purpose")
+    @app_commands.choices(purpose=[
+        app_commands.Choice(name="Missions", value="missions"),
+        app_commands.Choice(name="Announcements", value="announcements"),
+        app_commands.Choice(name="Pending Missions", value="pending_missions"),
+        app_commands.Choice(name="Mission Logs", value="mission_logs")
+    ])
     @app_commands.default_permissions(administrator=True)
-    async def setchannel_slash(self, interaction: discord.Interaction, channel: discord.TextChannel, purpose: str):
-        """Set a channel for a specific purpose (e.g., missions, announcements)"""
-        self.data["channels"][purpose] = str(channel.id)
+    async def setchannel_slash(self, interaction: discord.Interaction, channel: discord.TextChannel, purpose: app_commands.Choice[str]):
+        """Set a channel for a specific purpose"""
+        self.data["channels"][purpose.value] = str(channel.id)
         self.save_data()
-        await interaction.response.send_message(f"Set {channel.mention} as the {purpose} channel")
+        await interaction.response.send_message(f"Set {channel.mention} as the {purpose.name} channel")
 
     # Add error handlers for invalid commands
     @setup_prefix.error

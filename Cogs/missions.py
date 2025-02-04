@@ -62,8 +62,12 @@ class MissionCog(commands.Cog, name="mission commands"):
         await ctx.send(f"Mission {mission_id} created!", view=view)
 
     @app_commands.command(name="startmission", description="Start a new mission")
-    async def start_mission_slash(self, interaction: discord.Interaction, category: str, description: str):
-        if category not in self.config["mission_categories"]:
+    @app_commands.choices(category=[
+        app_commands.Choice(name=cat, value=cat) 
+        for cat in ["Rescue", "Transport", "Delivery", "Training", "Other"]
+    ])
+    async def start_mission_slash(self, interaction: discord.Interaction, category: app_commands.Choice[str], description: str):
+        if category.value not in self.config["mission_categories"]:
             await interaction.response.send_message(
                 "Invalid category. Available categories: " + ", ".join(self.config["mission_categories"]))
             return
@@ -72,7 +76,7 @@ class MissionCog(commands.Cog, name="mission commands"):
         mission = {
             "id": mission_id,
             "leader": interaction.user.id,
-            "category": category,
+            "category": category.value,
             "description": description,
             "status": "pending",
             "start_time": datetime.datetime.now().isoformat(),
