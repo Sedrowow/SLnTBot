@@ -1,0 +1,22 @@
+{
+    "prefix": "/",
+    "owner_id": 439412977792319499,
+    "manager_role_id": 1126480834925437008,
+    "on_duty_role_id": 1336256075250401301,
+    "on_mission_role_id": 1336256265298509855,
+    "pending_missions_channel_id": 1336256527761145936,
+    "mission_categories": [
+        "Rescue",
+        "Transport",
+		"Delivery",
+        "Training",
+        "Other"
+    ],
+    "experience_levels": {
+        "1": 0,
+        "2": 200,
+        "3": 400,
+        "4": 800,
+		"5": 1600
+    }
+}
