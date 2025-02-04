@@ -83,8 +83,17 @@ class SetupCog(commands.Cog, name="setup commands"):
             self.save_data()
 
     def save_data(self):
-        with open("data/database.json", "w") as f:
-            json.dump(self.data, f, indent=4)
+        try:
+            with open("data/database.json", "r") as f:
+                current_data = json.load(f)
+            
+            # Update only the roles section
+            current_data["roles"] = self.data["roles"]
+            
+            with open("data/database.json", "w") as f:
+                json.dump(current_data, f, indent=4)
+        except Exception as e:
+            print(f"Error saving data: {str(e)}")
 
     @commands.command(name="setup")
     @commands.has_permissions(administrator=True)
@@ -124,6 +133,9 @@ class SetupCog(commands.Cog, name="setup commands"):
     async def role_slash(self, interaction: discord.Interaction, role: discord.Role, priority: int):
         """Add an existing role to the ranking system"""
         try:
+            # Load fresh data
+            self.load_data()
+            
             role_data = {
                 "id": str(role.id),
                 "name": role.name,
@@ -134,20 +146,25 @@ class SetupCog(commands.Cog, name="setup commands"):
             if "roles" not in self.data:
                 self.data["roles"] = {}
             
+            # Update role data
+            self.data["roles"][str(role.id)] = role_data
+            
+            # Save data immediately
+            self.save_data()
+
+            # Verify data was saved
+            self.load_data()
             if str(role.id) in self.data["roles"]:
                 await interaction.response.send_message(
-                    f"Role {role.name} is already in the ranking system! Use /editrole to modify it.",
+                    f"Added existing role {role.mention} to ranking system with priority {priority}",
                     ephemeral=True
                 )
-                return
-            
-            self.data["roles"][str(role.id)] = role_data
-            self.save_data()
-            
-            await interaction.response.send_message(
-                f"Added existing role {role.mention} to ranking system with priority {priority}",
-                ephemeral=True
-            )
+            else:
+                await interaction.response.send_message(
+                    "Error: Role was not saved properly. Please try again.",
+                    ephemeral=True
+                )
+
         except Exception as e:
             await interaction.response.send_message(
                 f"Error adding role: {str(e)}",

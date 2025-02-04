@@ -65,18 +65,24 @@ class LevelsCog(commands.Cog, name="leveling commands"):
         highest_priority = float('inf')  # Default to lowest priority
         found_role = False
         
+        # Reload data to ensure we have the latest
+        self.load_data()
+        
+        print(f"Checking roles for {member.name}...")
+        print(f"Available roles in database: {self.data.get('roles', {}).keys()}")
+        
         for role in member.roles:
             role_id = str(role.id)
+            print(f"Checking role {role.name} (ID: {role_id})")
             if role_id in self.data.get("roles", {}):
                 found_role = True
                 priority = self.data["roles"][role_id]["priority"]
+                print(f"Found role in system with priority {priority}")
                 highest_priority = min(highest_priority, priority)
         
-        # If no valid roles found, return a high number to indicate no permissions
-        if not found_role:
-            return 999
-            
-        return highest_priority
+        final_priority = 999 if not found_role else highest_priority
+        print(f"Final priority for {member.name}: {final_priority}")
+        return final_priority
 
     def debug_roles(self, member: discord.Member) -> str:
         """Helper method to debug role priorities"""
