@@ -252,34 +252,94 @@ class LevelsCog(commands.Cog, name="leveling commands"):
         )
 
     @app_commands.command(name="levels", description="Manage level roles and settings")
-    async def levels_manage(self, interaction: discord.Interaction):
+    async def levels_manage(self, interaction: discord.Interaction, action: str = None, level: int = None, role: discord.Role = None, exp_required: int = None, duty_income: float = None, mission_bonus: float = None):
         """Manage level roles and settings"""
-        user_priority = self.get_user_priority(interaction.user)
-        if user_priority <= 2:
-            view = LevelManageView(self)
-            embed = discord.Embed(
-                title="Level Management",
-                description="Current level configuration:",
-                color=discord.Color.blue()
-            )
-            
-            for level, data in sorted(self.data.get("level_roles", {}).items(), key=lambda x: int(x[0])):
-                role = interaction.guild.get_role(int(data["role_id"]))
-                embed.add_field(
-                    name=f"Level {level}",
-                    value=(
-                        f"Role: {role.mention if role else 'Not found'}\n"
-                        f"Required EXP: {data['exp_required']}\n"
-                        f"Duty Income: {data['duty_income']} SC/30min\n"
-                        f"Mission Bonus: {data['mission_bonus']}%"
-                    ),
-                    inline=False
+        try:
+            user_priority = self.get_user_priority(interaction.user)
+            if user_priority > 2:
+                await interaction.response.send_message(
+                    "You don't have permission to manage levels!",
+                    ephemeral=True
+                )
+                return
+
+            # Show current levels if no action specified
+            if not action:
+                embed = discord.Embed(
+                    title="Level Management",
+                    description="Current level configuration:\nUse `/levels add <level> @role <exp_required> <duty_income> <mission_bonus>` to add/edit",
+                    color=discord.Color.blue()
+                )
+                
+                for level, data in sorted(self.data.get("level_roles", {}).items(), key=lambda x: int(x[0])):
+                    role = interaction.guild.get_role(int(data["role_id"]))
+                    embed.add_field(
+                        name=f"Level {level}",
+                        value=(
+                            f"Role: {role.mention if role else 'Not found'}\n"
+                            f"Required EXP: {data['exp_required']}\n"
+                            f"Duty Income: {data['duty_income']} SC/30min\n"
+                            f"Mission Bonus: {data['mission_bonus']}%"
+                        ),
+                        inline=False
+                    )
+                
+                await interaction.response.send_message(embed=embed)
+                return
+
+            # Handle add/edit action
+            if action.lower() == "add":
+                if not all([level is not None, role, exp_required, duty_income, mission_bonus]):
+                    await interaction.response.send_message(
+                        "Missing parameters! Use: `/levels add <level> @role <exp_required> <duty_income> <mission_bonus>`",
+                        ephemeral=True
+                    )
+                    return
+
+                level_data = {
+                    "role_id": str(role.id),
+                    "exp_required": exp_required,
+                    "duty_income": duty_income,
+                    "mission_bonus": mission_bonus
+                }
+                
+                self.data["level_roles"][str(level)] = level_data
+                self.save_data()
+
+                # If this is level 0, assign it to members who have a hierarchy role
+                if level == 0:
+                    await self.assign_default_levels(interaction.guild)
+
+                await interaction.response.send_message(
+                    f"Level {level} configured with role {role.mention}",
+                    ephemeral=True
                 )
 
-            await interaction.response.send_message(embed=embed, view=view)
-        else:
+            # Handle remove action
+            elif action.lower() == "remove":
+                if level is None:
+                    await interaction.response.send_message(
+                        "Please specify a level to remove!",
+                        ephemeral=True
+                    )
+                    return
+
+                if str(level) in self.data["level_roles"]:
+                    del self.data["level_roles"][str(level)]
+                    self.save_data()
+                    await interaction.response.send_message(
+                        f"Level {level} removed from configuration",
+                        ephemeral=True
+                    )
+                else:
+                    await interaction.response.send_message(
+                        f"Level {level} not found in configuration",
+                        ephemeral=True
+                    )
+
+        except Exception as e:
             await interaction.response.send_message(
-                "You don't have permission to manage levels!",
+                f"Error managing levels: {str(e)}",
                 ephemeral=True
             )
 
