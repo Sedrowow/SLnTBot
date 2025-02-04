@@ -252,7 +252,21 @@ class LevelsCog(commands.Cog, name="leveling commands"):
         )
 
     @app_commands.command(name="levels", description="Manage level roles and settings")
-    async def levels_manage(self, interaction: discord.Interaction, action: str = None, level: int = None, role: discord.Role = None, exp_required: int = None, duty_income: float = None, mission_bonus: float = None):
+    @app_commands.choices(action=[
+        app_commands.Choice(name="View All", value="view"),
+        app_commands.Choice(name="Add/Edit Level", value="add"),
+        app_commands.Choice(name="Remove Level", value="remove")
+    ])
+    async def levels_manage(
+        self, 
+        interaction: discord.Interaction, 
+        action: app_commands.Choice[str],
+        level: int = None,
+        role: discord.Role = None,
+        exp_required: int = None,
+        duty_income: float = None,
+        mission_bonus: float = None
+    ):
         """Manage level roles and settings"""
         try:
             user_priority = self.get_user_priority(interaction.user)
@@ -263,11 +277,11 @@ class LevelsCog(commands.Cog, name="leveling commands"):
                 )
                 return
 
-            # Show current levels if no action specified
-            if not action:
+            # Show current levels if viewing
+            if action.value == "view":
                 embed = discord.Embed(
                     title="Level Management",
-                    description="Current level configuration:\nUse `/levels add <level> @role <exp_required> <duty_income> <mission_bonus>` to add/edit",
+                    description="Current level configuration:",
                     color=discord.Color.blue()
                 )
                 
@@ -288,10 +302,10 @@ class LevelsCog(commands.Cog, name="leveling commands"):
                 return
 
             # Handle add/edit action
-            if action.lower() == "add":
-                if not all([level is not None, role, exp_required, duty_income, mission_bonus]):
+            if action.value == "add":
+                if not all([level is not None, role, exp_required is not None, duty_income is not None, mission_bonus is not None]):
                     await interaction.response.send_message(
-                        "Missing parameters! Use: `/levels add <level> @role <exp_required> <duty_income> <mission_bonus>`",
+                        "All parameters required for adding/editing a level!",
                         ephemeral=True
                     )
                     return
@@ -316,7 +330,7 @@ class LevelsCog(commands.Cog, name="leveling commands"):
                 )
 
             # Handle remove action
-            elif action.lower() == "remove":
+            elif action.value == "remove":
                 if level is None:
                     await interaction.response.send_message(
                         "Please specify a level to remove!",
