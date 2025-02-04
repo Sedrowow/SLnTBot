@@ -22,7 +22,7 @@ class LevelsCog(commands.Cog, name="leveling commands"):
         highest_priority = float('inf')  # Default to lowest priority
         for role in member.roles:
             role_id = str(role.id)
-            if role_id in self.data["roles"]:
+            if role_id in self.data.get("roles", {}):
                 priority = self.data["roles"][role_id]["priority"]
                 highest_priority = min(highest_priority, priority)
         return highest_priority
@@ -31,12 +31,16 @@ class LevelsCog(commands.Cog, name="leveling commands"):
         approver_priority = self.get_user_priority(approver)
         target_priority = self.get_user_priority(target)
         
-        # Only priority 0-2 can approve themselves
-        if approver.id == target.id:
-            return approver_priority <= 2
+        # Priority 0 can approve anyone including themselves
+        if approver_priority == 0:
+            return True
             
-        # Can only approve people with higher priority number (lower rank)
-        return approver_priority < target_priority
+        # Priority 1 and 2 can approve lower ranks but not themselves
+        if approver_priority in [1, 2]:
+            return target_priority > approver_priority
+            
+        # Other priorities cannot approve
+        return False
 
     @commands.command(name="approve")
     @commands.has_role("Manager")
@@ -56,34 +60,46 @@ class LevelsCog(commands.Cog, name="leveling commands"):
         await ctx.send(f"Mission approved! {user.mention} received {sc} SC and {exp} EXP")
 
     @app_commands.command(name="approve", description="Approve a mission and award SC/EXP")
-    @app_commands.checks.has_role("Manager")
     async def approve_slash(self, interaction: discord.Interaction, user: discord.Member, mission_id: str, sc: int, exp: int):
-        if not self.can_approve(interaction.user, user):
+        """Approve a mission and award SC/EXP"""
+        try:
+            # Check if user has permission to approve
+            if not self.can_approve(interaction.user, user):
+                await interaction.response.send_message(
+                    "You don't have permission to approve this user's missions! "
+                    "You need a higher rank to approve their missions.",
+                    ephemeral=True
+                )
+                return
+
+            # Initialize user data if not exists
+            user_id = str(user.id)
+            if user_id not in self.data["users"]:
+                self.data["users"][user_id] = {"sc": 0, "exp": 0}
+
+            # Award SC and EXP
+            self.data["users"][user_id]["sc"] += sc
+            self.data["users"][user_id]["exp"] += exp
+            self.save_data()
+
+            # Calculate new level
+            current_exp = self.data["users"][user_id]["exp"]
+            new_level = 0
+            for level, req_exp in sorted(self.config["experience_levels"].items(), key=lambda x: int(x[0])):
+                if current_exp >= req_exp:
+                    new_level = int(level)
+
             await interaction.response.send_message(
-                "You don't have permission to approve this user's missions!", 
+                f"Mission {mission_id} approved!\n"
+                f"{user.mention} received {sc} SC and {exp} EXP\n"
+                f"Current level: {new_level}"
+            )
+
+        except Exception as e:
+            await interaction.response.send_message(
+                f"Error approving mission: {str(e)}",
                 ephemeral=True
             )
-            return
-
-        user_id = str(user.id)
-        if user_id not in self.data["users"]:
-            self.data["users"][user_id] = {"sc": 0, "exp": 0}
-        
-        self.data["users"][user_id]["sc"] += sc
-        self.data["users"][user_id]["exp"] += exp
-        self.save_data()
-
-        # Check for level up
-        current_exp = self.data["users"][user_id]["exp"]
-        new_level = 1
-        for level, req_exp in self.config["experience_levels"].items():
-            if current_exp >= req_exp:
-                new_level = int(level)
-
-        await interaction.response.send_message(
-            f"Mission approved! {user.mention} received {sc} SC and {exp} EXP\n"
-            f"Current level: {new_level}"
-        )
 
     @app_commands.command(name="level", description="Check your or another user's level")
     async def level_slash(self, interaction: discord.Interaction, user: discord.Member = None):
