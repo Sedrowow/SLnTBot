@@ -60,5 +60,5 @@ class MissionCog(commands.Cog, name="mission commands"):
 
         await ctx.send(f"Mission {mission_id} created!", view=view)
 
-def setup(bot: commands.Bot):
-    bot.add_cog(MissionCog(bot))
+async def setup(bot: commands.Bot):
+    await bot.add_cog(MissionCog(bot))

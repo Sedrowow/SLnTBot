@@ -25,5 +25,5 @@ class EconomyCog(commands.Cog, name="economy commands"):
         balance = self.data["users"][user_id]["sc"]
         await ctx.send(f"Your balance: {balance} SC")
 
-def setup(bot: commands.Bot):
-    bot.add_cog(EconomyCog(bot))
+async def setup(bot: commands.Bot):
+    await bot.add_cog(EconomyCog(bot))
