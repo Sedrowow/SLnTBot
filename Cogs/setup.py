@@ -102,36 +102,31 @@ class SetupCog(commands.Cog, name="setup commands"):
 
     @commands.command(name="role")
     @commands.has_permissions(administrator=True)
-    async def role(self, ctx, role_name: str, priority: int):
-        """Add a new role to the ranking system"""
-        # Create the role if it doesn't exist
-        role = discord.utils.get(ctx.guild.roles, name=role_name)
-        if not role:
-            role = await ctx.guild.create_role(name=role_name)
+    async def role(self, ctx, role: discord.Role, priority: int):
+        """Add an existing role to the ranking system"""
+        if str(role.id) in self.data["roles"]:
+            await ctx.send(f"Role {role.name} is already in the ranking system! Use /editrole to modify it.")
+            return
 
         role_data = {
             "id": str(role.id),
-            "name": role_name,
+            "name": role.name,
             "priority": priority,
-            "bonus_income": 1.0  # 1% default bonus
+            "bonus_income": 1.0
         }
 
         self.data["roles"][str(role.id)] = role_data
         self.save_data()
-        await ctx.send(f"Role {role_name} added with priority {priority}")
+        await ctx.send(f"Added existing role {role.mention} to ranking system with priority {priority}")
 
-    @app_commands.command(name="role", description="Add a new role to the ranking system")
+    @app_commands.command(name="role", description="Add an existing role to the ranking system")
     @app_commands.default_permissions(administrator=True)
-    async def role_slash(self, interaction: discord.Interaction, role_name: str, priority: int):
-        """Slash command version of role command"""
+    async def role_slash(self, interaction: discord.Interaction, role: discord.Role, priority: int):
+        """Add an existing role to the ranking system"""
         try:
-            role = discord.utils.get(interaction.guild.roles, name=role_name)
-            if not role:
-                role = await interaction.guild.create_role(name=role_name)
-
             role_data = {
                 "id": str(role.id),
-                "name": role_name,
+                "name": role.name,
                 "priority": priority,
                 "bonus_income": 1.0
             }
@@ -139,16 +134,23 @@ class SetupCog(commands.Cog, name="setup commands"):
             if "roles" not in self.data:
                 self.data["roles"] = {}
             
+            if str(role.id) in self.data["roles"]:
+                await interaction.response.send_message(
+                    f"Role {role.name} is already in the ranking system! Use /editrole to modify it.",
+                    ephemeral=True
+                )
+                return
+            
             self.data["roles"][str(role.id)] = role_data
             self.save_data()
             
             await interaction.response.send_message(
-                f"Role {role_name} added with priority {priority}",
+                f"Added existing role {role.mention} to ranking system with priority {priority}",
                 ephemeral=True
             )
         except Exception as e:
             await interaction.response.send_message(
-                f"Error creating role: {str(e)}",
+                f"Error adding role: {str(e)}",
                 ephemeral=True
             )
 
