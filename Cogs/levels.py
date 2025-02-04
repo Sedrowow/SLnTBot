@@ -3,6 +3,46 @@ from discord.ext import commands
 from discord import app_commands
 import json
 
+class LevelManageView(discord.ui.View):
+    def __init__(self, cog):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="Add Level Role", style=discord.ButtonStyle.green)
+    async def add_level_role(self, interaction: discord.Interaction, button: discord.ui.Button):
+        modal = LevelRoleModal(title="Add Level Role")
+        await interaction.response.send_modal(modal)
+        try:
+            modal_inter = await interaction.client.wait_for(
+                "modal_submit",
+                timeout=300.0,
+                check=lambda i: i.user.id == interaction.user.id
+            )
+            level = int(modal.level.value)
+            role_id = int(modal.role_id.value)
+            
+            self.cog.data["level_roles"][str(level)] = str(role_id)
+            self.cog.save_data()
+            await modal_inter.response.send_message(f"Added role for level {level}", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+
+class LevelRoleModal(discord.ui.Modal):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.level = discord.ui.TextInput(
+            label="Level",
+            placeholder="Enter level number",
+            required=True
+        )
+        self.role_id = discord.ui.TextInput(
+            label="Role ID",
+            placeholder="Enter role ID",
+            required=True
+        )
+        self.add_item(self.level)
+        self.add_item(self.role_id)
+
 class LevelsCog(commands.Cog, name="leveling commands"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -11,6 +51,9 @@ class LevelsCog(commands.Cog, name="leveling commands"):
     def load_data(self):
         with open("data/database.json", "r") as f:
             self.data = json.load(f)
+            # Initialize level_roles if not exists
+            if "level_roles" not in self.data:
+                self.data["level_roles"] = {}
         with open("configuration.json", "r") as f:
             self.config = json.load(f)
 
@@ -125,6 +168,58 @@ class LevelsCog(commands.Cog, name="leveling commands"):
             f"Level: {level}\n"
             f"EXP: {exp}\n"
             f"Next level in: {exp_needed} EXP"
+        )
+
+    @app_commands.command(name="levels", description="Manage level roles and settings")
+    async def levels_manage(self, interaction: discord.Interaction):
+        """Manage level roles and settings"""
+        user_priority = self.get_user_priority(interaction.user)
+        if user_priority > 2:  # Only ranks 0-2 can manage levels
+            await interaction.response.send_message(
+                "You don't have permission to manage levels!",
+                ephemeral=True
+            )
+            return
+
+        view = LevelManageView(self)
+        embed = discord.Embed(
+            title="Level Management",
+            description="Current level roles:",
+            color=discord.Color.blue()
+        )
+        
+        for level, role_id in self.data.get("level_roles", {}).items():
+            role = interaction.guild.get_role(int(role_id))
+            embed.add_field(
+                name=f"Level {level}",
+                value=f"Role: {role.mention if role else 'Not found'}",
+                inline=False
+            )
+
+        await interaction.response.send_message(embed=embed, view=view)
+
+    @app_commands.command(name="addexp", description="Add or remove EXP from a user")
+    async def add_exp(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        """Add or remove EXP from a user (Rank 0 only)"""
+        if self.get_user_priority(interaction.user) != 0:
+            await interaction.response.send_message(
+                "Only highest rank can modify EXP!",
+                ephemeral=True
+            )
+            return
+
+        user_id = str(user.id)
+        if user_id not in self.data["users"]:
+            self.data["users"][user_id] = {"sc": 0, "exp": 0}
+
+        self.data["users"][user_id]["exp"] += amount
+        if self.data["users"][user_id]["exp"] < 0:
+            self.data["users"][user_id]["exp"] = 0
+
+        self.save_data()
+        await interaction.response.send_message(
+            f"Updated {user.mention}'s EXP by {amount:+}. New total: {self.data['users'][user_id]['exp']}",
+            ephemeral=True
         )
 
 async def setup(bot: commands.Bot):
