@@ -12,16 +12,26 @@ class RoleSelect(Select):
         ]
         super().__init__(placeholder="Select a role", options=options)
 
-class SetupView(View):
+class SetupSelect(Select):
     def __init__(self):
-        super().__init__()
-        self.add_item(Select(
+        super().__init__(
             placeholder="Choose setup type",
             options=[
                 discord.SelectOption(label="Role Setup", value="role"),
                 discord.SelectOption(label="Channel Setup", value="channel")
             ]
-        ))
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.values[0] == "role":
+            await interaction.response.send_message("Role setup selected. Use `/role` or `s!role` to manage roles.")
+        else:
+            await interaction.response.send_message("Channel setup selected. Use `/channel` or `s!channel` to manage channels.")
+
+class SetupView(View):
+    def __init__(self):
+        super().__init__()
+        self.add_item(SetupSelect())
 
 class SetupCog(commands.Cog, name="setup commands"):
     def __init__(self, bot: commands.Bot):
