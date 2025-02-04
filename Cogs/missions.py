@@ -118,19 +118,24 @@ class MissionCog(commands.Cog, name="mission commands"):
             json.dump(self.data, f, indent=4)
 
     async def post_to_pending_missions(self, mission_data: dict):
+        # Get channel IDs from data
+        mission_data["channels"] = {
+            "missions": self.data["channels"].get("missions"),
+            "mission_logs": self.data["channels"].get("mission_logs"),
+            "pending_missions": self.data["channels"].get("pending_missions")
+        }
+
         channel_id = self.data["channels"].get("pending_missions")
         if channel_id:
-            channel = self.bot.get_channel(int(channel_id))
+            channel = await self.bot.fetch_channel(int(channel_id))
             if channel:
                 view = MissionView(self.bot, mission_data)
-                await channel.send(
-                    embed=discord.Embed(
-                        title=f"New Mission #{mission_data['id']}",
-                        description=f"Category: {mission_data['category']}\nDescription: {mission_data['description']}",
-                        color=discord.Color.blue()
-                    ),
-                    view=view
+                embed = discord.Embed(
+                    title=f"New Mission #{mission_data['id']}",
+                    description=f"Category: {mission_data['category']}\nDescription: {mission_data['description']}",
+                    color=discord.Color.blue()
                 )
+                await channel.send(embed=embed, view=view)
 
     @commands.command(name="startmission")
     async def start_mission(self, ctx, category: str, *, description: str):
@@ -184,6 +189,16 @@ class MissionCog(commands.Cog, name="mission commands"):
                 "Invalid category. Available categories: " + ", ".join(self.config["mission_categories"]))
             return
 
+        # Check if required channels are set
+        required_channels = ["missions", "mission_logs", "pending_missions"]
+        missing_channels = [ch for ch in required_channels if not self.data["channels"].get(ch)]
+        if missing_channels:
+            await interaction.response.send_message(
+                f"Error: Missing channel configuration for: {', '.join(missing_channels)}. Please set them up first.",
+                ephemeral=True
+            )
+            return
+
         mission_id = str(len(self.data["missions"]) + 1)
         mission = {
             "id": mission_id,
@@ -199,25 +214,27 @@ class MissionCog(commands.Cog, name="mission commands"):
         self.data["active_missions"][mission_id] = mission
         self.save_data()
 
-        view = View()
-        need_help_button = Button(label="Need Help", style=discord.ButtonStyle.primary)
-        start_button = Button(label="Start Mission", style=discord.ButtonStyle.green)
-        
-        async def need_help_callback(button_interaction):
-            await button_interaction.response.send_message("Help requested!", ephemeral=True)
-            # Additional help request logic here
-
-        async def start_callback(button_interaction):
-            await button_interaction.response.send_message("Mission started!", ephemeral=True)
-            # Additional mission start logic here
-
-        need_help_button.callback = need_help_callback
-        start_button.callback = start_callback
-        view.add_item(need_help_button)
-        view.add_item(start_button)
-
+        # Post to both missions and pending_missions channels
         await self.post_to_pending_missions(mission)
-        await interaction.response.send_message(f"Mission {mission_id} created and posted to pending missions!")
+        
+        # Also post to main missions channel
+        missions_channel_id = self.data["channels"].get("missions")
+        if missions_channel_id:
+            try:
+                channel = await self.bot.fetch_channel(int(missions_channel_id))
+                embed = discord.Embed(
+                    title=f"New Mission Started #{mission_id}",
+                    description=f"Leader: {interaction.user.mention}\nCategory: {category.value}\nDescription: {description}",
+                    color=discord.Color.green()
+                )
+                await channel.send(embed=embed)
+            except discord.NotFound:
+                await interaction.followup.send("Warning: Could not post to missions channel", ephemeral=True)
+
+        await interaction.response.send_message(
+            f"Mission {mission_id} created and posted to channels!",
+            ephemeral=True
+        )
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(MissionCog(bot))
