@@ -80,113 +80,48 @@ class ActiveMissionView(View):
     @discord.ui.button(label="End Mission", style=discord.ButtonStyle.green)
     async def end_mission(self, interaction: discord.Interaction, button: Button):
         try:
-            end_time = datetime.datetime.now()
-            start_time = datetime.datetime.fromisoformat(self.mission_data["start_time"])
-            duration = end_time - start_time
+            screenshots_channel = await self.bot.fetch_channel(int(self.mission_data["channels"]["screenshots"]))
+            await screenshots_channel.send(
+                f"Mission #{self.mission_data['id']} ending.\n"
+                f"{interaction.user.mention}, please use `/confend {self.mission_data['id']} <reason>` "
+                f"and optionally upload a screenshot."
+            )
             
-            class EndMissionModal(Modal):
-                def __init__(self):
-                    super().__init__(title="Mission End Details")
-                    self.screenshot = TextInput(
-                        label="Screenshot URL",
-                        required=False,
-                        placeholder="Paste screenshot URL here..."
-                    )
-                    self.reason = TextInput(
-                        label="End Reason",
-                        required=True,
-                        placeholder="Why is the mission ending?"
-                    )
-                    self.add_item(self.screenshot)
-                    self.add_item(self.reason)
-
-            modal = EndMissionModal()
-            await interaction.response.send_modal(modal)
-
-            try:
-                modal_inter = await self.bot.wait_for(
-                    "modal_submit",
-                    timeout=300.0,
-                    check=lambda i: i.user.id == interaction.user.id
-                )
-
-                self.mission_data.update({
-                    "status": "completed",
-                    "end_time": end_time.isoformat(),
-                    "duration": str(duration),
-                    "end_reason": modal.reason.value,
-                    "screenshot": modal.screenshot.value if modal.screenshot.value else None
-                })
-
-                # Create completion embed
-                embed = discord.Embed(
-                    title=f"Mission {self.mission_data['id']} Completed",
-                    description=(
-                        f"Duration: {duration}\n"
-                        f"Category: {self.mission_data['category']}\n"
-                        f"Description: {self.mission_data['description']}\n"
-                        f"Reason: {modal.reason.value}"
-                    ),
-                    color=discord.Color.yellow()
-                )
-
-                # Handle screenshot if provided
-                if modal.screenshot.value:
-                    screenshots_channel_id = self.mission_data["channels"].get("screenshots")
-                    if screenshots_channel_id:
-                        try:
-                            screenshots_channel = await self.bot.fetch_channel(int(screenshots_channel_id))
-                            await screenshots_channel.send(
-                                f"Screenshot for Mission #{self.mission_data['id']}\n"
-                                f"Submitted by: {interaction.user.mention}\n"
-                                f"URL: {modal.screenshot.value}"
-                            )
-                        except discord.NotFound:
-                            await modal_inter.response.send_message(
-                                "Warning: Could not post screenshot to screenshots channel.",
-                                ephemeral=True
-                            )
-
-                # Update message
-                await interaction.message.edit(embed=embed, view=None)
-                await modal_inter.response.send_message("Mission completed successfully!", ephemeral=True)
-
-            except asyncio.TimeoutError:
-                await interaction.followup.send("Mission end timed out.", ephemeral=True)
-
+            # Update mission status to ending
+            self.mission_data["status"] = "ending"
+            self.mission_data["end_initiated_by"] = interaction.user.id
+            self.mission_data["end_time"] = datetime.datetime.now().isoformat()
+            
+            # Disable buttons
+            self.clear_items()
+            await interaction.message.edit(view=self)
+            await interaction.response.send_message("Mission end initiated. Please confirm in screenshots channel.", ephemeral=True)
+            
         except Exception as e:
-            await interaction.followup.send(f"Error ending mission: {str(e)}", ephemeral=True)
+            await interaction.response.send_message(f"Error ending mission: {str(e)}", ephemeral=True)
 
     @discord.ui.button(label="Abort Mission", style=discord.ButtonStyle.red)
     async def abort_mission(self, interaction: discord.Interaction, button: Button):
-        verification_code = ''.join(random.choices('0123456789', k=4))
-        abort_modal = AbortModal(verification_code)
-        
-        await interaction.response.send_modal(abort_modal)
         try:
-            modal_interaction = await self.bot.wait_for(
-                "modal_submit",
-                check=lambda i: i.user.id == interaction.user.id,
-                timeout=60.0
+            screenshots_channel = await self.bot.fetch_channel(int(self.mission_data["channels"]["screenshots"]))
+            await screenshots_channel.send(
+                f"Mission #{self.mission_data['id']} aborting.\n"
+                f"{interaction.user.mention}, please use `/confabort {self.mission_data['id']} <reason>` "
+                f"and optionally upload a screenshot."
             )
             
-            if await abort_modal.on_submit(modal_interaction):
-                self.mission_data["status"] = "aborted"
-                self.mission_data["abort_time"] = datetime.datetime.now().isoformat()
-                
-                # Post to mission logs
-                log_channel = self.bot.get_channel(int(self.mission_data["channels"]["mission_logs"]))
-                await log_channel.send(
-                    embed=discord.Embed(
-                        title=f"Mission {self.mission_data['id']} Aborted",
-                        description=f"Category: {self.mission_data['category']}\nDescription: {self.mission_data['description']}",
-                        color=discord.Color.yellow()
-                    )
-                )
-                
-                await interaction.edit_original_response(content="Mission aborted.", view=None)
-        except TimeoutError:
-            await interaction.followup.send("Abort confirmation timed out.", ephemeral=True)
+            # Update mission status to aborting
+            self.mission_data["status"] = "aborting"
+            self.mission_data["abort_initiated_by"] = interaction.user.id
+            self.mission_data["abort_time"] = datetime.datetime.now().isoformat()
+            
+            # Disable buttons
+            self.clear_items()
+            await interaction.message.edit(view=self)
+            await interaction.response.send_message("Mission abort initiated. Please confirm in screenshots channel.", ephemeral=True)
+            
+        except Exception as e:
+            await interaction.response.send_message(f"Error aborting mission: {str(e)}", ephemeral=True)
 
 class MissionCog(commands.Cog, name="mission commands"):
     def __init__(self, bot: commands.Bot):
@@ -350,6 +285,105 @@ class MissionCog(commands.Cog, name="mission commands"):
                 f"Error creating mission: {str(e)}",
                 ephemeral=True
             )
+
+    @app_commands.command(name="confend", description="Confirm mission end with reason and optional screenshot")
+    async def confirm_end(self, interaction: discord.Interaction, mission_id: str, reason: str, screenshot_url: str = None):
+        """Confirm mission end with reason and optional screenshot"""
+        try:
+            if mission_id not in self.data["active_missions"]:
+                await interaction.response.send_message("Mission not found!", ephemeral=True)
+                return
+
+            mission = self.data["active_missions"][mission_id]
+            if mission["status"] != "ending":
+                await interaction.response.send_message("This mission is not in ending state!", ephemeral=True)
+                return
+
+            if interaction.user.id != mission["end_initiated_by"]:
+                await interaction.response.send_message("Only the person who initiated the end can confirm it!", ephemeral=True)
+                return
+
+            # Calculate duration
+            end_time = datetime.datetime.fromisoformat(mission["end_time"])
+            start_time = datetime.datetime.fromisoformat(mission["start_time"])
+            duration = end_time - start_time
+
+            # Update mission data
+            mission.update({
+                "status": "completed",
+                "end_reason": reason,
+                "screenshot": screenshot_url,
+                "duration": str(duration)
+            })
+            self.save_data()
+
+            # Create completion embed
+            embed = discord.Embed(
+                title=f"Mission {mission_id} Completed",
+                description=(
+                    f"Duration: {duration}\n"
+                    f"Category: {mission['category']}\n"
+                    f"Description: {mission['description']}\n"
+                    f"Reason: {reason}"
+                ),
+                color=discord.Color.yellow()
+            )
+            if screenshot_url:
+                embed.add_field(name="Screenshot", value=screenshot_url)
+
+            # Post to missions channel
+            channel = await self.bot.fetch_channel(int(mission["channels"]["missions"]))
+            await channel.send(embed=embed)
+            
+            await interaction.response.send_message("Mission end confirmed!", ephemeral=True)
+
+        except Exception as e:
+            await interaction.response.send_message(f"Error confirming mission end: {str(e)}", ephemeral=True)
+
+    @app_commands.command(name="confabort", description="Confirm mission abort with reason and optional screenshot")
+    async def confirm_abort(self, interaction: discord.Interaction, mission_id: str, reason: str, screenshot_url: str = None):
+        """Confirm mission abort with reason and optional screenshot"""
+        try:
+            if mission_id not in self.data["active_missions"]:
+                await interaction.response.send_message("Mission not found!", ephemeral=True)
+                return
+
+            mission = self.data["active_missions"][mission_id]
+            if mission["status"] != "aborting":
+                await interaction.response.send_message("This mission is not in aborting state!", ephemeral=True)
+                return
+
+            if interaction.user.id != mission["abort_initiated_by"]:
+                await interaction.response.send_message("Only the person who initiated the abort can confirm it!", ephemeral=True)
+                return
+
+            # Update mission data
+            mission["status"] = "aborted"
+            mission["abort_reason"] = reason
+            mission["screenshot"] = screenshot_url
+            self.save_data()
+
+            # Create abort embed
+            embed = discord.Embed(
+                title=f"Mission {mission_id} Aborted",
+                description=(
+                    f"Category: {mission['category']}\n"
+                    f"Description: {mission['description']}\n"
+                    f"Reason: {reason}"
+                ),
+                color=discord.Color.red()
+            )
+            if screenshot_url:
+                embed.add_field(name="Screenshot", value=screenshot_url)
+
+            # Post to mission logs
+            log_channel = await self.bot.fetch_channel(int(mission["channels"]["mission_logs"]))
+            await log_channel.send(embed=embed)
+            
+            await interaction.response.send_message("Mission abort confirmed!", ephemeral=True)
+
+        except Exception as e:
+            await interaction.response.send_message(f"Error confirming mission abort: {str(e)}", ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(MissionCog(bot))
