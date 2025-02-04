@@ -30,5 +30,5 @@ class LevelsCog(commands.Cog, name="leveling commands"):
 
         await ctx.send(f"Mission approved! {user.mention} received {sc} SC and {exp} EXP")
 
-def setup(bot: commands.Bot):
-    bot.add_cog(LevelsCog(bot))
+async def setup(bot: commands.Bot):
+    await bot.add_cog(LevelsCog(bot))
