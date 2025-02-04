@@ -14,28 +14,33 @@ token = os.getenv('DISCORD_BOT_TOKEN')
 if not token:
     raise ValueError("No token found! Make sure to set DISCORD_BOT_TOKEN environment variable!")
 
-class Greetings(commands.Cog):
-	def __init__(self, bot):
-		self.bot = bot
-		self._last_member = None
+class CustomBot(commands.Bot):
+    def __init__(self):
+        super().__init__(
+            command_prefix=prefix,
+            intents=discord.Intents.all(),
+            owner_id=owner_id,
+            application_id=os.getenv('APPLICATION_ID')  # Add your application ID here
+        )
 
-# Intents
-intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True
-# The bot
-bot = commands.Bot(prefix, intents=intents, owner_id=owner_id)
+    async def setup_hook(self):
+        # Load cogs
+        for filename in os.listdir("Cogs"):
+            if filename.endswith(".py"):
+                await self.load_extension(f"Cogs.{filename[:-3]}")
+        
+        # Sync slash commands
+        await self.tree.sync()
 
-# Load cogs
-if __name__ == '__main__':
-	for filename in os.listdir("Cogs"):
-		if filename.endswith(".py"):
-			bot.load_extension(f"Cogs.{filename[:-3]}")
+bot = CustomBot()
 
 @bot.event
 async def on_ready():
-	print(f"We have logged in as {bot.user}")
-	print(discord.__version__)
-	await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name =f"{bot.command_prefix}help"))
+    print(f"We have logged in as {bot.user}")
+    print(discord.__version__)
+    await bot.change_presence(activity=discord.Activity(
+        type=discord.ActivityType.watching, 
+        name=f"{bot.command_prefix}help or /help"
+    ))
 
 bot.run(token)

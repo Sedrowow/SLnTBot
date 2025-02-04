@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 from discord.ui import Select, View, Button
 import json
 
@@ -37,9 +38,17 @@ class SetupCog(commands.Cog, name="setup commands"):
 
     @commands.command(name="setup")
     @commands.has_permissions(administrator=True)
-    async def setup(self, ctx):
+    async def setup_prefix(self, ctx):
+        """Traditional prefix command for setup"""
         view = SetupView()
         await ctx.send("Please select what you want to set up:", view=view)
+
+    @app_commands.command(name="setup", description="Set up roles and channels for the bot")
+    @app_commands.default_permissions(administrator=True)
+    async def setup_slash(self, interaction: discord.Interaction):
+        """Slash command for setup"""
+        view = SetupView()
+        await interaction.response.send_message("Please select what you want to set up:", view=view)
 
     @commands.command(name="role")
     @commands.has_permissions(administrator=True)
@@ -60,6 +69,25 @@ class SetupCog(commands.Cog, name="setup commands"):
         self.data["roles"][str(role.id)] = role_data
         self.save_data()
         await ctx.send(f"Role {role_name} added with priority {priority}")
+
+    @app_commands.command(name="role", description="Add a new role to the ranking system")
+    @app_commands.default_permissions(administrator=True)
+    async def role_slash(self, interaction: discord.Interaction, role_name: str, priority: int):
+        """Slash command version of role command"""
+        role = discord.utils.get(interaction.guild.roles, name=role_name)
+        if not role:
+            role = await interaction.guild.create_role(name=role_name)
+
+        role_data = {
+            "id": str(role.id),
+            "name": role_name,
+            "priority": priority,
+            "bonus_income": 1.0
+        }
+
+        self.data["roles"][str(role.id)] = role_data
+        self.save_data()
+        await interaction.response.send_message(f"Role {role_name} added with priority {priority}")
 
     @commands.command(name="editrole")
     @commands.has_permissions(administrator=True)
@@ -95,5 +123,11 @@ class SetupCog(commands.Cog, name="setup commands"):
         else:
             await ctx.send("This role is not in the ranking system!")
 
-def setup(bot: commands.Bot):
-    bot.add_cog(SetupCog(bot))
+    # Add error handlers for invalid commands
+    @setup_prefix.error
+    async def setup_error(self, ctx, error):
+        if isinstance(error, commands.CommandNotFound):
+            await ctx.send("Setup command not found. Use `/setup` or `s!setup`")
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(SetupCog(bot))
