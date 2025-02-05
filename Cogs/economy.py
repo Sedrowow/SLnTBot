@@ -67,5 +67,25 @@ class EconomyCog(commands.Cog, name="economy commands"):
             f"Successfully transferred {amount} SC to {recipient.mention}"
         )
 
+    # New command to modify a user's balance
+    @app_commands.command(name="modifybalance", description="Modify a user's SC balance")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def modify_balance_slash(self, interaction: discord.Interaction, user: discord.Member, new_balance: int):
+        user_id = str(user.id)
+        if user_id not in self.data["users"]:
+            self.data["users"][user_id] = {"sc": 0, "exp": 0}
+        
+        self.data["users"][user_id]["sc"] = new_balance
+        self.save_data()
+        
+        await interaction.response.send_message(
+            f"The balance of {user.mention} has been set to {new_balance} SC."
+        )
+
+    @modify_balance_slash.error
+    async def modify_balance_slash_error(self, interaction: discord.Interaction, error):
+        if isinstance(error, app_commands.MissingPermissions):
+            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(EconomyCog(bot))
