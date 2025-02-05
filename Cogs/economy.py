@@ -11,6 +11,7 @@ class EconomyCog(commands.Cog, name="economy commands"):
     def load_data(self):
         with open("data/database.json", "r") as f:
             self.data = json.load(f)
+            print(f"Loaded data: {self.data}")  # Debugging line
 
     def save_data(self):
         with open("data/database.json", "w") as f:
@@ -24,6 +25,7 @@ class EconomyCog(commands.Cog, name="economy commands"):
             self.save_data()
         
         balance = self.data["users"][user_id]["sc"]
+        print(f"User ID: {user_id}, Balance: {balance}")  # Debugging line
         await ctx.send(f"Your balance: {balance} SC")
 
     @app_commands.command(name="balance", description="Check your SC balance")
@@ -34,6 +36,7 @@ class EconomyCog(commands.Cog, name="economy commands"):
             self.save_data()
         
         balance = self.data["users"][user_id]["sc"]
+        print(f"User ID: {user_id}, Balance: {balance}")  # Debugging line
         await interaction.response.send_message(f"Your balance: {balance} SC")
 
     @app_commands.command(name="transfer", description="Transfer SC to another user")
