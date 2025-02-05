@@ -272,42 +272,42 @@ class MissionCog(commands.Cog, name="mission commands"):
         for cat in ["Rescue", "Transport", "Delivery", "Training", "Other"]
     ])
     async def start_mission_slash(self, interaction: discord.Interaction, category: app_commands.Choice[str], description: str):
-    try:
+        try:
         # Validate category
-        if category.value not in self.config["mission_categories"]:
-            await interaction.response.send_message(
+            if category.value not in self.config["mission_categories"]:
+                await interaction.response.send_message(
                 "Invalid category. Available categories: " + ", ".join(self.config["mission_categories"]))
-            return
+                return
 
-        # Check if channels exist
-        channels = self.data.get("channels", {})
-        required_channels = {
+            # Check if channels exist
+            channels = self.data.get("channels", {})
+            required_channels = {
             "missions": channels.get("missions"),
             "mission_logs": channels.get("mission_logs"),
             "pending_missions": channels.get("pending_missions")
         }
 
         # Verify all required channels exist and are accessible
-        missing_channels = []
-        for name, channel_id in required_channels.items():
-            if not channel_id:
-                missing_channels.append(name)
-            else:
-                try:
-                    await self.bot.fetch_channel(int(channel_id))
-                except (discord.NotFound, ValueError):
+            missing_channels = []
+            for name, channel_id in required_channels.items():
+                if not channel_id:
                     missing_channels.append(name)
+                else:
+                    try:
+                        await self.bot.fetch_channel(int(channel_id))
+                    except (discord.NotFound, ValueError):
+                        missing_channels.append(name)
 
-        if missing_channels:
-            await interaction.response.send_message(
+            if missing_channels:
+                await interaction.response.send_message(
                 f"Error: Missing or invalid channel configuration for: {', '.join(missing_channels)}. Please set them up first.",
                 ephemeral=True
             )
             return
 
-        # Create mission
-        mission_id = str(len(self.data.get("active_missions", {})) + 1)
-        mission = {
+            # Create mission
+            mission_id = str(len(self.data.get("active_missions", {})) + 1)
+            mission = {
             "id": mission_id,
             "leader": interaction.user.id,
             "category": category.value,
@@ -319,26 +319,26 @@ class MissionCog(commands.Cog, name="mission commands"):
             "channels": required_channels  # Ensure channels are properly assigned here
         }
 
-        if "active_missions" not in self.data:
-            self.data["active_missions"] = {}
+            if "active_missions" not in self.data:
+                self.data["active_missions"] = {}
 
-        self.data["active_missions"][mission_id] = mission
-        self.save_data()
+            self.data["active_missions"][mission_id] = mission
+            self.save_data()
 
-        # Post to pending_missions
-        success = await self.post_to_pending_missions(mission)
-        if success:
-            await interaction.response.send_message(
+            # Post to pending_missions
+            success = await self.post_to_pending_missions(mission)
+            if success:
+                await interaction.response.send_message(
                 f"Mission {mission_id} created! Check pending missions channel.",
                 ephemeral=True
             )
-        else:
-            await interaction.response.send_message(
+            else:
+                await interaction.response.send_message(
                 "Error: Could not post to pending missions channel. Please check channel configuration.",
                 ephemeral=True
             )
-    except Exception as e:
-        await interaction.response.send_message(
+        except Exception as e:
+            await interaction.response.send_message(
             f"Error creating mission: {str(e)}",
             ephemeral=True
         )
