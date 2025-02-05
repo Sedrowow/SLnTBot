@@ -271,18 +271,23 @@ class MissionCog(commands.Cog, name="mission commands"):
         app_commands.Choice(name=cat, value=cat) 
         for cat in ["Rescue", "Transport", "Delivery", "Training", "Other"]
     ])
+    @app_commands.command(name="startmission", description="Start a new mission")
+    @app_commands.choices(category=[
+    app_commands.Choice(name=cat, value=cat) 
+    for cat in ["Rescue", "Transport", "Delivery", "Training", "Other"]
+])
     async def start_mission_slash(self, interaction: discord.Interaction, category: app_commands.Choice[str], description: str):
         try:
         # Validate category
             if category.value not in self.config["mission_categories"]:
-                await interaction.response.send_message(
+               await interaction.response.send_message(
                 "Invalid category. Available categories: " + ", ".join(self.config["mission_categories"]))
-                return
+               return
 
-            # Check if channels exist
+        # Check if channels exist
             channels = self.data.get("channels", {})
             required_channels = {
-            "missions": channels.get("missions"),
+           "missions": channels.get("missions"),
             "mission_logs": channels.get("mission_logs"),
             "pending_missions": channels.get("pending_missions")
         }
@@ -303,7 +308,7 @@ class MissionCog(commands.Cog, name="mission commands"):
                 f"Error: Missing or invalid channel configuration for: {', '.join(missing_channels)}. Please set them up first.",
                 ephemeral=True
             )
-            return
+                return
 
             # Create mission
             mission_id = str(len(self.data.get("active_missions", {})) + 1)
@@ -316,7 +321,7 @@ class MissionCog(commands.Cog, name="mission commands"):
             "start_time": datetime.datetime.now().isoformat(),
             "members": [interaction.user.id],
             "helpers_needed": 0,
-            "channels": required_channels  # Ensure channels are properly assigned here
+            "channels": required_channels
         }
 
             if "active_missions" not in self.data:
@@ -338,10 +343,13 @@ class MissionCog(commands.Cog, name="mission commands"):
                 ephemeral=True
             )
         except Exception as e:
+            # Log the error for debugging
+            print(f"Error in start_mission_slash: {str(e)}")
             await interaction.response.send_message(
             f"Error creating mission: {str(e)}",
             ephemeral=True
         )
+
 
     @app_commands.command(name="confend", description="Confirm mission end with reason and optional screenshot")
     async def confirm_end(self, interaction: discord.Interaction, mission_id: str, reason: str, screenshot_url: str = None):
