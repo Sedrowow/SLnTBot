@@ -269,11 +269,6 @@ class MissionCog(commands.Cog, name="mission commands"):
     @app_commands.command(name="startmission", description="Start a new mission")
     @app_commands.choices(category=[
         app_commands.Choice(name=cat, value=cat) 
-        for cat in ["Rescue", "Transport", "Delivery", "Training", "Other"]
-    ])
-    @app_commands.command(name="startmission", description="Start a new mission")
-    @app_commands.choices(category=[
-    app_commands.Choice(name=cat, value=cat) 
     for cat in ["Rescue", "Transport", "Delivery", "Training", "Other"]
 ])
     async def start_mission_slash(self, interaction: discord.Interaction, category: app_commands.Choice[str], description: str):
