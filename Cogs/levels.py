@@ -166,23 +166,6 @@ class LevelsCog(commands.Cog, name="leveling commands"):
         # Other priorities cannot approve
         return False
 
-    @commands.command(name="approve")
-    @commands.has_role("Manager")
-    async def approve_mission(self, ctx, user: discord.Member, mission_id: str, sc: int, exp: int):
-        if not self.can_approve(ctx.author, user):
-            await ctx.send("You don't have permission to approve this user's missions!")
-            return
-
-        user_id = str(user.id)
-        if user_id not in self.data["users"]:
-            self.data["users"][user_id] = {"sc": 0, "exp": 0}
-        
-        self.data["users"][user_id]["sc"] += sc
-        self.data["users"][user_id]["exp"] += exp
-        self.save_data()
-
-        await ctx.send(f"Mission approved! {user.mention} received {sc} SC and {exp} EXP")
-
     @app_commands.command(name="approve", description="Approve a mission and award SC/EXP")
     async def approve_slash(self, interaction: discord.Interaction, user: discord.Member, mission_id: str, sc: int, exp: int):
         """Approve a mission and award SC/EXP"""

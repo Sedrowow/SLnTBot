@@ -1,85 +1,120 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from discord.ui import Select, View
 from random import randint
 
-class HelpCog(commands.Cog, name="help command"):
-    def __init__(self, bot:commands.Bot):
+class CategorySelect(Select):
+    def __init__(self, categories):
+        options = [
+            discord.SelectOption(
+                label=category,
+                description=f"View commands in {category}"
+            ) for category in categories
+        ]
+        super().__init__(placeholder="Select a category...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        embed = create_category_embed(self.view.bot, self.values[0])
+        await interaction.response.edit_message(embed=embed)
+
+class HelpView(View):
+    def __init__(self, bot: commands.Bot):
+        super().__init__()
+        self.bot = bot
+        # Get unique categories from cogs
+        categories = set(cog.qualified_name for cog in bot.cogs.values())
+        self.add_item(CategorySelect(categories))
+
+def create_category_embed(bot: commands.Bot, category: str) -> discord.Embed:
+    embed = discord.Embed(
+        title=f"{category} Commands", 
+        description=f"Available commands in {category}:", 
+        color=randint(0, 0xffffff)
+    )
+    
+    cog = bot.get_cog(category)
+    if cog:
+        for command in cog.get_app_commands():
+            embed.add_field(
+                name=f"/{command.name}", 
+                value=command.description or "No description available",
+                inline=False
+            )
+    return embed
+
+def create_command_embed(command: app_commands.Command) -> discord.Embed:
+    embed = discord.Embed(
+        title=f"/{command.name}",
+        description=command.description or "No description available",
+        color=randint(0, 0xffffff)
+    )
+    
+    # Add parameters if they exist
+    if command.parameters:
+        params = []
+        for param in command.parameters:
+            param_type = param.type.__str__().split(".")[-1]  # Get clean type name
+            required = "" if param.required else " (optional)"
+            params.append(f"`{param.name}`: {param_type}{required}")
+        embed.add_field(name="Parameters", value="\n".join(params), inline=False)
+    
+    return embed
+
+class HelpCog(commands.Cog, name="Help Command"):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command(name = 'help',
-                    usage="(commandName)",
-                    description = "Display the help message.",
-                    aliases = ['h', '?'])
-    @commands.cooldown(1, 2, commands.BucketType.member)
-    async def help (self, ctx, commandName:str=None):
-
-        commandName2 = None
-        stop = False
-
-        if commandName is not None:
-            for i in self.bot.commands:
-                if i.name == commandName.lower():
-                    commandName2 = i
-                    break 
-                else:
-                    for j in i.aliases:
-                        if j == commandName.lower():
-                            commandName2 = i
-                            stop = True
-                            break
-                        if stop is True:
-                            break 
-
-            if commandName2 is None:
-                await ctx.channel.send("No command found!")   
-            else:
-                embed = discord.Embed(title=f"{commandName2.name.upper()} Command", description="", color=randint(0, 0xffffff))
-                embed.set_thumbnail(url=f'{self.bot.user.display_avatar.url}')
-                embed.add_field(name=f"Name", value=f"{commandName2.name}", inline=False)
-                aliases = commandName2.aliases
-                aliasList = ""
-                if len(aliases) > 0:
-                    for alias in aliases:
-                        aliasList += alias + ", "
-                    aliasList = aliasList[:-2]
-                    embed.add_field(name=f"Aliases", value=aliasList)
-                else:
-                    embed.add_field(name=f"Aliases", value="None", inline=False)
-
-                if commandName2.usage is None:
-                    embed.add_field(name=f"Usage", value=f"None", inline=False)
-                else:
-                    embed.add_field(name=f"Usage", value=f"{self.bot.command_prefix}{commandName2.name} {commandName2.usage}", inline=False)
-                embed.add_field(name=f"Description", value=f"{commandName2.description}", inline=False)
-                await ctx.channel.send(embed=embed)             
-        else:
-            embed = discord.Embed(title=f"Help page", description=f"{self.bot.command_prefix}help (commandName), display the help list or the help data for a specific command.", color=randint(0, 0xffffff))
-            embed.set_thumbnail(url=f'{self.bot.user.display_avatar.url}')
-            for i in self.bot.commands:
-                embed.add_field(name=i.name, value=i.description, inline=False)
-            await ctx.channel.send(embed=embed)
-
     @app_commands.command(name="help", description="Display the help message")
-    async def help_slash(self, interaction: discord.Interaction, command_name: str = None):
-        """Slash command version of help"""
-        if command_name is None:
-            embed = discord.Embed(
-                title="Help page", 
-                description="Available commands (use / or s! prefix):", 
-                color=randint(0, 0xffffff)
-            )
-            # Add application commands
-            for cmd in self.bot.tree.get_commands():
-                embed.add_field(name=f"/{cmd.name}", value=cmd.description, inline=False)
-            # Add prefix commands
-            for cmd in self.bot.commands:
-                embed.add_field(name=f"s!{cmd.name}", value=cmd.description, inline=False)
-            await interaction.response.send_message(embed=embed)
-        else:
-            # ... existing command-specific help logic ...
-            pass
+    async def help_slash(
+        self, 
+        interaction: discord.Interaction, 
+        category: str = None, 
+        command: str = None
+    ):
+        if command:
+            # Find and display specific command
+            cmd = discord.utils.get(self.bot.tree.get_commands(), name=command.lower())
+            if cmd:
+                embed = create_command_embed(cmd)
+                await interaction.response.send_message(embed=embed)
+            else:
+                await interaction.response.send_message(
+                    "Command not found!", 
+                    ephemeral=True
+                )
+            return
 
-async def setup(bot:commands.Bot):
-    bot.remove_command("help")
+        if category:
+            # Display specific category
+            cog = self.bot.get_cog(category)
+            if cog:
+                embed = create_category_embed(self.bot, category)
+                await interaction.response.send_message(embed=embed)
+            else:
+                await interaction.response.send_message(
+                    "Category not found!", 
+                    ephemeral=True
+                )
+            return
+
+        # Display main help menu with category selection
+        embed = discord.Embed(
+            title="Help Menu",
+            description="Select a category from the dropdown below to view commands:",
+            color=randint(0, 0xffffff)
+        )
+        
+        # Add list of categories in the embed
+        categories = [cog.qualified_name for cog in self.bot.cogs.values()]
+        embed.add_field(
+            name="Available Categories",
+            value="\n".join(f"• {cat}" for cat in categories),
+            inline=False
+        )
+        
+        view = HelpView(self.bot)
+        await interaction.response.send_message(embed=embed, view=view)
+
+async def setup(bot: commands.Bot):
     await bot.add_cog(HelpCog(bot))

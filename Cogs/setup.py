@@ -95,12 +95,6 @@ class SetupCog(commands.Cog, name="setup commands"):
         except Exception as e:
             print(f"Error saving data: {str(e)}")
 
-    @commands.command(name="setup")
-    @commands.has_permissions(administrator=True)
-    async def setup_prefix(self, ctx):
-        """Traditional prefix command for setup"""
-        view = SetupView(self.bot)
-        await ctx.send("Please select what you want to set up:", view=view)
 
     @app_commands.command(name="setup", description="Set up roles and channels for the bot")
     @app_commands.default_permissions(administrator=True)
@@ -108,25 +102,6 @@ class SetupCog(commands.Cog, name="setup commands"):
         """Slash command for setup"""
         view = SetupView(self.bot)
         await interaction.response.send_message("Please select what you want to set up:", view=view)
-
-    @commands.command(name="role")
-    @commands.has_permissions(administrator=True)
-    async def role(self, ctx, role: discord.Role, priority: int):
-        """Add an existing role to the ranking system"""
-        if str(role.id) in self.data["roles"]:
-            await ctx.send(f"Role {role.name} is already in the ranking system! Use /editrole to modify it.")
-            return
-
-        role_data = {
-            "id": str(role.id),
-            "name": role.name,
-            "priority": priority,
-            "bonus_income": 1.0
-        }
-
-        self.data["roles"][str(role.id)] = role_data
-        self.save_data()
-        await ctx.send(f"Added existing role {role.mention} to ranking system with priority {priority}")
 
     @app_commands.command(name="role", description="Add an existing role to the ranking system")
     @app_commands.default_permissions(administrator=True)
@@ -171,10 +146,9 @@ class SetupCog(commands.Cog, name="setup commands"):
                 ephemeral=True
             )
 
-    @commands.command(name="editrole")
-    @commands.has_permissions(administrator=True)
+    @app_commands.command(name="editrole", description="Edit a role's properties (name/priority/bonus)")
+    @app_commands.default_permissions(administrator=True)
     async def edit_role(self, ctx, role: discord.Role, field: str, value: str):
-        """Edit a role's properties (name/priority/bonus)"""
         role_id = str(role.id)
         if role_id not in self.data["roles"]:
             await ctx.send("This role is not in the ranking system!")
@@ -193,10 +167,9 @@ class SetupCog(commands.Cog, name="setup commands"):
         self.save_data()
         await ctx.send(f"Updated {field} for role {role.name}")
 
-    @commands.command(name="removerole")
-    @commands.has_permissions(administrator=True)
+    @app_commands.command(name="removerole",description="Remove a role from the ranking system")
+    @app_commands.default_permissions(administrator=True)
     async def remove_role(self, ctx, role: discord.Role):
-        """Remove a role from the ranking system"""
         role_id = str(role.id)
         if role_id in self.data["roles"]:
             del self.data["roles"][role_id]
@@ -232,12 +205,6 @@ class SetupCog(commands.Cog, name="setup commands"):
                 f"Error setting channel: {str(e)}",
                 ephemeral=True
             )
-
-    # Add error handlers for invalid commands
-    @setup_prefix.error
-    async def setup_error(self, ctx, error):
-        if isinstance(error, commands.CommandNotFound):
-            await ctx.send("Setup command not found. Use `/setup` or `s!setup`")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SetupCog(bot))

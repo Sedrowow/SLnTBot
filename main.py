@@ -6,7 +6,6 @@ import os
 # Get configuration.json
 with open("configuration.json", "r") as config: 
     data = json.load(config)
-    prefix = data["prefix"]
     owner_id = data["owner_id"]
 
 # Get token from environment variable
@@ -17,19 +16,16 @@ if not token:
 class CustomBot(commands.Bot):
     def __init__(self):
         super().__init__(
-            command_prefix=prefix,
+            command_prefix=commands.when_mentioned,  # Only respond to mentions
             intents=discord.Intents.all(),
             owner_id=owner_id,
-            application_id=os.getenv('APPLICATION_ID')  # Add your application ID here
+            application_id=os.getenv('APPLICATION_ID')
         )
 
     async def setup_hook(self):
-        # Load cogs
         for filename in os.listdir("Cogs"):
             if filename.endswith(".py"):
                 await self.load_extension(f"Cogs.{filename[:-3]}")
-        
-        # Sync slash commands
         await self.tree.sync()
 
 bot = CustomBot()
@@ -40,7 +36,7 @@ async def on_ready():
     print(discord.__version__)
     await bot.change_presence(activity=discord.Activity(
         type=discord.ActivityType.watching, 
-        name=f"{bot.command_prefix}help or /help"
+        name="/help"
     ))
 
 bot.run(token)

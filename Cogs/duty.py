@@ -6,7 +6,7 @@ import datetime
 import random
 import asyncio
 
-class DutyCog(commands.Cog, name="duty commands"):
+class DutyCog(commands.Cog, name="Duty System"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.load_data()

@@ -3,7 +3,7 @@ from discord.ext import commands
 import json
 from discord import app_commands
 
-class EconomyCog(commands.Cog, name="economy commands"):
+class EconomyCog(commands.Cog, name="Economy"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.load_data()
@@ -16,17 +16,6 @@ class EconomyCog(commands.Cog, name="economy commands"):
     def save_data(self):
         with open("data/database.json", "w") as f:
             json.dump(self.data, f, indent=4)
-
-    @commands.command(name="balance")
-    async def balance(self, ctx):
-        user_id = str(ctx.author.id)
-        if user_id not in self.data["users"]:
-            self.data["users"][user_id] = {"sc": 0, "exp": 0}
-            self.save_data()
-        
-        balance = self.data["users"][user_id]["sc"]
-        print(f"User ID: {user_id}, Balance: {balance}")  # Debugging line
-        await ctx.send(f"Your balance: {balance} SC")
 
     @app_commands.command(name="balance", description="Check your SC balance")
     async def balance_slash(self, interaction: discord.Interaction):
