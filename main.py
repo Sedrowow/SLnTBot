@@ -8,10 +8,20 @@ with open("configuration.json", "r") as config:
     data = json.load(config)
     owner_id = data["owner_id"]
 
-# Get token from environment variable
+# Get token from environment variable or fall back to a .env file
 token = os.getenv('DISCORD_BOT_TOKEN')
 if not token:
-    raise ValueError("No token found! Make sure to set DISCORD_BOT_TOKEN environment variable!")
+    # Try to load from a .env file using python-dotenv if available
+    try:
+        from dotenv import load_dotenv
+    except Exception:
+        raise ValueError("No token found in environment and python-dotenv is not installed. Install python-dotenv or set DISCORD_BOT_TOKEN environment variable.")
+    # load .env from project root (default behavior)
+    load_dotenv()
+    token = os.getenv('DISCORD_BOT_TOKEN')
+
+if not token:
+    raise ValueError("No token found! Make sure to set DISCORD_BOT_TOKEN environment variable or create a .env file with DISCORD_BOT_TOKEN=...")
 
 class CustomBot(commands.Bot):
     def __init__(self):
